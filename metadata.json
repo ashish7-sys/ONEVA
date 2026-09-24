@@ -1,6 +1,0 @@
-{
-  "name": "ONEVA",
-  "description": "Privacy-first Android customization and enhancement platform with Real JARVIS Continuous Multimodal Vision, Full-Duplex Voice, Episodic Memory, Predictive Routines, and Autonomous Self-Healing.",
-  "requestFramePermissions": ["microphone", "camera"],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

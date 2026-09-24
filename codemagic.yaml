@@ -9,7 +9,7 @@ workflows:
   oneva-android-release:
     name: ONEVA Android Release APK
     max_build_duration: 35
-    instance_type: linux_x2
+    instance_type: mac_mini_m2
 
     environment:
       java: 17
