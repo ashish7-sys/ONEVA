@@ -1,0 +1,121 @@
+# ==============================================================================
+# ONEVA - Privacy-First Android Enhancement & Customization Platform
+# Codemagic CI/CD Automation Workflow for Android Release Builds
+# Package ID: io.oneva.android.launcher
+# Architecture: High-Performance Android Native Shell + Web Asset Bundle
+# ==============================================================================
+
+workflows:
+  oneva-android-release:
+    name: ONEVA Android Release APK
+    max_build_duration: 35
+    instance_type: linux_x2
+
+    environment:
+      android_sdk: 34
+      java: 17
+      node: 20
+      groups:
+        - oneva_release_keystore
+      vars:
+        PACKAGE_NAME: "io.oneva.android.launcher"
+        ONEVA_VERSION_NAME: "1.0.0"
+        GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx2048m"
+
+    cache:
+      cache_paths:
+        - $HOME/.gradle/caches
+        - $HOME/.gradle/wrapper
+        - $CM_BUILD_DIR/node_modules
+
+    scripts:
+      - name: Verify Build Environment & Versions
+        script: |
+          echo "=========================================================="
+          echo "ONEVA ANDROID CI/CD RELEASE PIPELINE"
+          echo "=========================================================="
+          echo "Node.js:  $(node -v)"
+          echo "NPM:      $(npm -v)"
+          echo "Java:     $(java -version 2>&1 | head -n 1)"
+          echo "Android:  API Level 34 (Target SDK)"
+          echo "Package:  $PACKAGE_NAME"
+          echo "Version:  $ONEVA_VERSION_NAME (Build #$BUILD_NUMBER)"
+          echo "Workdir:  $PWD"
+          echo "=========================================================="
+
+      - name: Install Node.js Dependencies
+        script: |
+          echo "Installing project dependencies..."
+          npm ci || npm install --legacy-peer-deps
+
+      - name: Build Web Application Bundle (Vite Production)
+        script: |
+          echo "Compiling Vite web assets..."
+          npx vite build
+          echo "Web build verified in dist/ directory:"
+          ls -lh dist/
+
+      - name: Sync Web Production Assets into Android Shell
+        script: |
+          echo "Preparing Android assets folder..."
+          mkdir -p android/app/src/main/assets
+          rm -rf android/app/src/main/assets/*
+          cp -r dist/* android/app/src/main/assets/
+          echo "Assets successfully synced into android/app/src/main/assets:"
+          ls -la android/app/src/main/assets/
+
+      - name: Configure Cryptographic Release Signing Keystore
+        script: |
+          echo "Checking for production release keystore credentials..."
+          # The keystore is permanently maintained to allow future OTA/APK updates.
+          # Supports both Base64-encoded environment secret (CM_KEYSTORE) and file path (CM_KEYSTORE_PATH).
+          if [ -n "$CM_KEYSTORE" ]; then
+            echo "Decoding permanent release keystore from CM_KEYSTORE environment variable..."
+            echo "$CM_KEYSTORE" | base64 --decode > /tmp/oneva_release_keystore.keystore
+            export CM_KEYSTORE_PATH="/tmp/oneva_release_keystore.keystore"
+            echo "Keystore successfully prepared at: $CM_KEYSTORE_PATH"
+          elif [ -n "$CM_KEYSTORE_PATH" ] && [ -f "$CM_KEYSTORE_PATH" ]; then
+            echo "Using existing keystore file detected at: $CM_KEYSTORE_PATH"
+          else
+            echo "================================================================================"
+            echo "NOTICE: No production keystore secret configured in Codemagic environment."
+            echo "The build will proceed using standard debug signing fallback so the APK is created."
+            echo "To use official release signing, define CM_KEYSTORE in Codemagic variable groups."
+            echo "================================================================================"
+          fi
+
+      - name: Build Android Release APK & App Bundle
+        script: |
+          cd android
+          echo "Preparing Gradle build system..."
+          # Ensure Gradle wrapper exists and is fully executable
+          if [ ! -s gradlew ] || [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Initializing Gradle wrapper via system Gradle..."
+            gradle wrapper --gradle-version 8.4 || true
+          fi
+
+          chmod +x gradlew 2>/dev/null || true
+
+          if [ -f gradlew ] && [ -s gradlew ] && [ -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Executing ./gradlew assembleRelease..."
+            ./gradlew assembleRelease --stacktrace
+          else
+            echo "Executing system gradle assembleRelease..."
+            gradle assembleRelease --stacktrace
+          fi
+
+          echo "Listing generated APK artifacts:"
+          ls -lh app/build/outputs/apk/release/ || true
+
+    artifacts:
+      - android/app/build/outputs/apk/release/*.apk
+      - android/app/build/outputs/bundle/release/*.aab
+      - android/app/build/outputs/mapping/release/mapping.txt
+
+    publishing:
+      email:
+        recipients:
+          - ashishkumar29032011@gmail.com
+        notify:
+          success: true
+          failure: true

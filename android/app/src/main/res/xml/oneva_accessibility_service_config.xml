@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ONEVA Phase 16: Android Accessibility Service Configuration
+  Enables deep in-app UI automation for ONEVA JARVIS:
+  - Can retrieve active window UI hierarchy & interactive nodes
+  - Can perform touch gestures, clicks, and text typing
+  - Reports view IDs and interactive windows
+  - Follows Rule 6: Zero spyware, local-only processing
+-->
+<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/accessibility_service_description"
+    android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeViewClicked|typeViewFocused"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:notificationTimeout="100"
+    android:accessibilityFlags="flagDefault|flagReportViewIds|flagRetrieveInteractiveWindows|flagRequestTouchExplorationMode"
+    android:canRetrieveWindowContent="true"
+    android:canPerformGestures="true"
+    android:canRequestFilterKeyEvents="false"
+    android:settingsActivity="io.oneva.android.launcher.MainActivity" />
