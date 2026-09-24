@@ -12,7 +12,6 @@ workflows:
     instance_type: linux_x2
 
     environment:
-      android_sdk: 34
       java: 17
       node: 20
       groups:
