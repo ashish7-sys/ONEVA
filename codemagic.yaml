@@ -65,6 +65,7 @@ workflows:
 
       - name: Configure Cryptographic Release Signing Keystore
         script: |
+          set -e
           echo "Checking for production release keystore credentials..."
           # The keystore is permanently maintained to allow future OTA/APK updates.
           # Supports both Base64-encoded environment secret (CM_KEYSTORE) and file path (CM_KEYSTORE_PATH).
@@ -72,9 +73,15 @@ workflows:
             echo "Decoding permanent release keystore from CM_KEYSTORE environment variable..."
             echo "$CM_KEYSTORE" | base64 --decode > /tmp/oneva_release_keystore.keystore
             export CM_KEYSTORE_PATH="/tmp/oneva_release_keystore.keystore"
-            echo "Keystore successfully prepared at: $CM_KEYSTORE_PATH"
+            if [ -n "$CM_ENV" ]; then
+              echo "CM_KEYSTORE_PATH=/tmp/oneva_release_keystore.keystore" >> "$CM_ENV"
+            fi
+            echo "Keystore successfully prepared at: /tmp/oneva_release_keystore.keystore"
           elif [ -n "$CM_KEYSTORE_PATH" ] && [ -f "$CM_KEYSTORE_PATH" ]; then
             echo "Using existing keystore file detected at: $CM_KEYSTORE_PATH"
+            if [ -n "$CM_ENV" ]; then
+              echo "CM_KEYSTORE_PATH=$CM_KEYSTORE_PATH" >> "$CM_ENV"
+            fi
           else
             echo "================================================================================"
             echo "NOTICE: No production keystore secret configured in Codemagic environment."
@@ -85,31 +92,94 @@ workflows:
 
       - name: Build Android Release APK & App Bundle
         script: |
+          set -e
+          echo "Entering Android native project directory..."
           cd android
-          echo "Preparing Gradle build system..."
-          # Ensure Gradle wrapper exists and is fully executable
-          if [ ! -s gradlew ] || [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "Initializing Gradle wrapper via system Gradle..."
-            gradle wrapper --gradle-version 8.4 || true
+
+          # Ensure Gradle wrapper jar exists
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            echo "Gradle wrapper jar missing; downloading official v8.4.0 wrapper..."
+            mkdir -p gradle/wrapper
+            curl -sSL -o gradle/wrapper/gradle-wrapper.jar https://raw.githubusercontent.com/gradle/gradle/v8.4.0/gradle/wrapper/gradle-wrapper.jar
           fi
 
-          chmod +x gradlew 2>/dev/null || true
+          chmod +x gradlew
 
-          if [ -f gradlew ] && [ -s gradlew ] && [ -f gradle/wrapper/gradle-wrapper.jar ]; then
-            echo "Executing ./gradlew assembleRelease..."
-            ./gradlew assembleRelease --stacktrace
+          # Guarantee keystore path availability for Gradle
+          if [ -z "$CM_KEYSTORE_PATH" ] && [ -f /tmp/oneva_release_keystore.keystore ]; then
+            export CM_KEYSTORE_PATH="/tmp/oneva_release_keystore.keystore"
+          fi
+
+          if [ -n "$CM_KEYSTORE_PATH" ] && [ -f "$CM_KEYSTORE_PATH" ]; then
+            echo "Configured Release Keystore: $CM_KEYSTORE_PATH"
+          fi
+
+          echo "=========================================================="
+          echo "Building Signed Release APK (assembleRelease)..."
+          echo "=========================================================="
+          ./gradlew assembleRelease --stacktrace
+
+          echo "=========================================================="
+          echo "Building Signed Release AAB (bundleRelease)..."
+          echo "=========================================================="
+          ./gradlew bundleRelease --stacktrace
+
+      - name: Verify Release Artifact Integrity & Availability
+        script: |
+          set -e
+          echo "=========================================================="
+          echo "VERIFYING GENERATED RELEASE ARTIFACTS"
+          echo "=========================================================="
+
+          echo "Searching for generated APK files..."
+          APK_FOUND=$(find android/app/build/outputs -type f -name "*.apk" 2>/dev/null || true)
+          echo "APK search results:"
+          echo "$APK_FOUND"
+
+          echo "Searching for generated AAB files..."
+          AAB_FOUND=$(find android/app/build/outputs -type f -name "*.aab" 2>/dev/null || true)
+          echo "AAB search results:"
+          echo "$AAB_FOUND"
+
+          RELEASE_APK="android/app/build/outputs/apk/release/app-release.apk"
+          RELEASE_AAB="android/app/build/outputs/bundle/release/app-release.aab"
+
+          MISSING_COUNT=0
+
+          if [ -f "$RELEASE_APK" ]; then
+            APK_SIZE=$(ls -lh "$RELEASE_APK" | awk '{print $5}')
+            echo "✓ Confirmed Release APK exists: $RELEASE_APK (Size: $APK_SIZE)"
           else
-            echo "Executing system gradle assembleRelease..."
-            gradle assembleRelease --stacktrace
+            echo "✗ ERROR: Expected Release APK NOT found at: $RELEASE_APK"
+            MISSING_COUNT=$((MISSING_COUNT + 1))
           fi
 
-          echo "Listing generated APK artifacts:"
-          ls -lh app/build/outputs/apk/release/ || true
+          if [ -f "$RELEASE_AAB" ]; then
+            AAB_SIZE=$(ls -lh "$RELEASE_AAB" | awk '{print $5}')
+            echo "✓ Confirmed Release AAB exists: $RELEASE_AAB (Size: $AAB_SIZE)"
+          else
+            echo "✗ ERROR: Expected Release AAB NOT found at: $RELEASE_AAB"
+            MISSING_COUNT=$((MISSING_COUNT + 1))
+          fi
+
+          if [ $MISSING_COUNT -gt 0 ]; then
+            echo "=========================================================="
+            echo "FATAL: Artifact verification failed! $MISSING_COUNT release artifact(s) missing."
+            echo "=========================================================="
+            exit 1
+          fi
+
+          echo "=========================================================="
+          echo "ALL ARTIFACTS VERIFIED SUCCESSFULLY"
+          echo "Release APK and AAB are ready for download."
+          echo "=========================================================="
 
     artifacts:
       - android/app/build/outputs/apk/release/*.apk
       - android/app/build/outputs/bundle/release/*.aab
       - android/app/build/outputs/mapping/release/mapping.txt
+      - "**/build/outputs/**/*.apk"
+      - "**/build/outputs/**/*.aab"
 
     publishing:
       email:
