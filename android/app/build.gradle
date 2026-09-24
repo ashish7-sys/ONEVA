@@ -1,0 +1,80 @@
+plugins {
+    id 'com.android.application'
+}
+
+def appVersionCode = (System.getenv("BUILD_NUMBER") ?: System.getenv("ONEVA_VERSION_CODE") ?: "1").toInteger()
+def appVersionName = System.getenv("ONEVA_VERSION_NAME") ?: "1.0.0"
+
+android {
+    namespace 'io.oneva.android.launcher'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId "io.oneva.android.launcher"
+        minSdk 26
+        targetSdk 34
+        versionCode appVersionCode
+        versionName appVersionName
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        debug {
+            // Default Android debug signing key
+        }
+        release {
+            def keystorePath = System.getenv("CM_KEYSTORE_PATH") ?: project.findProperty("ONEVA_KEYSTORE_PATH")
+            def keystorePassword = System.getenv("CM_KEYSTORE_PASSWORD") ?: project.findProperty("ONEVA_KEYSTORE_PASSWORD")
+            def keyAlias = System.getenv("CM_KEY_ALIAS") ?: project.findProperty("ONEVA_KEY_ALIAS")
+            def keyPassword = System.getenv("CM_KEY_PASSWORD") ?: project.findProperty("ONEVA_KEY_PASSWORD")
+
+            if (keystorePath && file(keystorePath).exists() && keystorePassword && keyAlias && keyPassword) {
+                storeFile file(keystorePath)
+                storePassword keystorePassword
+                keyAlias keyAlias
+                keyPassword keyPassword
+            }
+        }
+    }
+
+    buildTypes {
+        debug {
+            signingConfig signingConfigs.debug
+        }
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig (signingConfigs.release.storeFile != null ? signingConfigs.release : signingConfigs.debug)
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    buildFeatures {
+        buildConfig true
+    }
+}
+
+dependencies {
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.webkit:webkit:1.10.0'
+    implementation 'androidx.core:core:1.12.0'
+    implementation 'androidx.activity:activity:1.8.2'
+}
+
+// Automatically sync Vite web production assets into Android assets directory
+tasks.register('syncWebAssets', Copy) {
+    from('../../dist')
+    into('src/main/assets')
+}
+
+tasks.whenTaskAdded { task ->
+    if (task.name == 'preBuild') {
+        task.dependsOn('syncWebAssets')
+    }
+}
