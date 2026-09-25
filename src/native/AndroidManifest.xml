@@ -6,13 +6,10 @@
       ONEVA Android Package Visibility Configuration
       Android 11 (API Level 30) and newer restricts installed package queries.
       Because ONEVA is a genuine home launcher replacement & device enhancement framework,
-      it requires either the CATEGORY_LAUNCHER intent queries block or QUERY_ALL_PACKAGES.
+      it utilizes the CATEGORY_LAUNCHER intent queries block for safe package visibility.
     -->
 
-    <!-- 1. Full Launcher Package Visibility Permission (Google Play approved for Home / Launcher apps) -->
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
-
-    <!-- 2. Fallback Package Visibility Queries block for launchable user-facing activities -->
+    <!-- Package Visibility Queries block for launchable user-facing activities -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
