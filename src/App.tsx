@@ -36,12 +36,19 @@ export default function App() {
     }
     return false;
   });
-  const [showPermissionWizard, setShowPermissionWizard] = useState<boolean>(() => {
-    return !OnevaPermissionManager.hasCompletedOnboarding();
-  });
+  const [showPermissionWizard, setShowPermissionWizard] = useState<boolean>(false);
   const [showNameOnboarding, setShowNameOnboarding] = useState<boolean>(() => {
     return UserProfileService.isFirstLaunch();
   });
+
+  // Listen for explicit request to open permission wizard from settings or features
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const handleOpenWizard = () => setShowPermissionWizard(true);
+      window.addEventListener('open-oneva-permissions-wizard', handleOpenWizard);
+      return () => window.removeEventListener('open-oneva-permissions-wizard', handleOpenWizard);
+    }
+  }, []);
 
   // Check URL query parameters or active admin session on initial mount
   useEffect(() => {
@@ -119,11 +126,13 @@ export default function App() {
       {showInitialSplash && (
         <OnevaSplashScreen
           onComplete={() => {
-            sessionStorage.setItem('oneva_initial_splash_shown', 'true');
+            try {
+              sessionStorage.setItem('oneva_initial_splash_shown', 'true');
+            } catch (e) {
+              // Ignore storage errors in secure webview
+            }
             setShowInitialSplash(false);
-            if (!OnevaPermissionManager.hasCompletedOnboarding()) {
-              setShowPermissionWizard(true);
-            } else if (UserProfileService.isFirstLaunch()) {
+            if (UserProfileService.isFirstLaunch()) {
               setShowNameOnboarding(true);
             }
           }}

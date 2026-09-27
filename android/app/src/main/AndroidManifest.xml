@@ -45,7 +45,7 @@
             android:launchMode="singleTask"
             android:clearTaskOnLaunch="true"
             android:stateNotNeeded="true"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|uiMode|density"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Oneva.Fullscreen">
             

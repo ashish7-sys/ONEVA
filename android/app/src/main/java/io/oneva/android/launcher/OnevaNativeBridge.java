@@ -207,17 +207,36 @@ public class OnevaNativeBridge {
     }
 
     /**
-     * Triggers the Android system dialog to set ONEVA as the default home launcher.
+     * Triggers the official Android system dialog to set ONEVA as the default home launcher.
+     * Uses RoleManager on Android 10+ (API 29+) with graceful fallback to Settings.ACTION_HOME_SETTINGS.
      */
     @JavascriptInterface
     public void requestSetDefaultLauncher() {
         try {
-            Intent intent = new Intent(Intent.ACTION_MAIN);
-            intent.addCategory(Intent.CATEGORY_HOME);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                android.app.role.RoleManager roleManager = (android.app.role.RoleManager) context.getSystemService(Context.ROLE_SERVICE);
+                if (roleManager != null && roleManager.isRoleAvailable(android.app.role.RoleManager.ROLE_HOME)) {
+                    Intent roleIntent = roleManager.createRequestRoleIntent(android.app.role.RoleManager.ROLE_HOME);
+                    if (activity != null) {
+                        activity.startActivity(roleIntent);
+                        return;
+                    } else {
+                        roleIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        context.startActivity(roleIntent);
+                        return;
+                    }
+                }
+            }
+            Intent intent = new Intent(Settings.ACTION_HOME_SETTINGS);
             intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(intent);
         } catch (Exception e) {
-            e.printStackTrace();
+            try {
+                Intent fallback = new Intent(Intent.ACTION_MAIN);
+                fallback.addCategory(Intent.CATEGORY_HOME);
+                fallback.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                context.startActivity(fallback);
+            } catch (Exception ignored) {}
         }
     }
 
@@ -290,12 +309,52 @@ public class OnevaNativeBridge {
     }
 
     /**
+     * Explicit on-demand request for Camera permission only (triggered when camera feature opens).
+     */
+    @JavascriptInterface
+    public void requestCameraPermission() {
+        if (activity != null) {
+            activity.requestCameraPermissionFromBridge();
+        }
+    }
+
+    /**
+     * Explicit on-demand request for Microphone permission only (triggered when voice feature activates).
+     */
+    @JavascriptInterface
+    public void requestMicrophonePermission() {
+        if (activity != null) {
+            activity.requestMicrophonePermissionFromBridge();
+        }
+    }
+
+    /**
      * Requests all runtime permissions simultaneously (Microphone, Camera, Notifications).
      */
     @JavascriptInterface
     public void requestAllRuntimePermissions() {
         if (activity != null) {
             activity.requestAllPermissionsFromBridge();
+        }
+    }
+
+    /**
+     * Called by the Web application when React mounts and initial view renders successfully.
+     */
+    @JavascriptInterface
+    public void notifyStartupSuccess() {
+        if (activity != null) {
+            activity.onWebStartupSuccess();
+        }
+    }
+
+    /**
+     * Called by the Web application if an unhandled startup or runtime error occurs.
+     */
+    @JavascriptInterface
+    public void reportStartupError(String stage, String errorMessage) {
+        if (activity != null) {
+            activity.onWebStartupError(stage, errorMessage);
         }
     }
 

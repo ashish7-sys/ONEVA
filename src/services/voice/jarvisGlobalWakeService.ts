@@ -57,15 +57,44 @@ export class JarvisGlobalWakeService {
       }
     }
 
-    // Auto-start background wake listening if enabled
+    // Auto-start background wake listening ONLY if microphone permission is already confirmed
     if (this.isEnabled) {
-      this.startListening();
+      const bridge = typeof window !== 'undefined' ? (window as any).OnevaNativeBridge : undefined;
+      const hasNativeMic = bridge && typeof bridge.hasMicrophonePermission === 'function'
+        ? bridge.hasMicrophonePermission()
+        : false;
+
+      if (hasNativeMic) {
+        this.startListening();
+      } else if (typeof navigator !== 'undefined' && (navigator as any).permissions) {
+        (navigator as any).permissions.query({ name: 'microphone' }).then((res: any) => {
+          if (res.state === 'granted') {
+            this.permissionGranted = true;
+            this.startListening();
+          }
+        }).catch(() => {
+          // Stay idle until user activates voice
+        });
+      }
     }
 
-    // Listen to visibility changes (keep listening active or restart smoothly)
+    // Listen for native permission changes
+    if (typeof window !== 'undefined') {
+      window.addEventListener('oneva-permissions-updated', () => {
+        const bridge = (window as any).OnevaNativeBridge;
+        if (bridge && typeof bridge.hasMicrophonePermission === 'function' && bridge.hasMicrophonePermission()) {
+          this.permissionGranted = true;
+          if (this.isEnabled && !this.isListening) {
+            this.startListening();
+          }
+        }
+      });
+    }
+
+    // Listen to visibility changes (keep listening active only if already permitted)
     if (typeof document !== 'undefined') {
       document.addEventListener('visibilitychange', () => {
-        if (!document.hidden && this.isEnabled && !this.isListening) {
+        if (!document.hidden && this.isEnabled && !this.isListening && this.permissionGranted) {
           this.startListening();
         }
       });

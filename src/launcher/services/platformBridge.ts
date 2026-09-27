@@ -20,10 +20,13 @@ export interface OnevaNativeBridgeInterface {
   hasMicrophonePermission?: () => boolean;
   requestMicrophonePermission?: () => void;
   hasCameraPermission?: () => boolean;
+  requestCameraPermission?: () => void;
   hasNotificationPermission?: () => boolean;
   hasOverlayPermission?: () => boolean;
   hasAccessibilityPermission?: () => boolean;
   requestAllRuntimePermissions?: () => void;
+  notifyStartupSuccess?: () => void;
+  reportStartupError?: (stage: string, err: string) => void;
   openOverlaySettings?: () => void;
   openAppSettings?: () => void;
   getAllPermissionsStatusJson?: () => string;
