@@ -44,6 +44,7 @@ export interface JarvisPersonalityPreferences {
   language: 'en' | 'hi' | 'auto';
   naturalPausesEnabled: boolean;
   speakInternalDetails: boolean; // strictly false by default
+  silenceMode?: boolean; // When true: suppress narration and execute tasks silently
   updatedAt?: number;
 }
 
@@ -56,6 +57,8 @@ export interface TtsSpeechRequest {
   rate?: number;
   pitch?: number;
   voiceURI?: string;
+  force?: boolean;
+  urgent?: boolean;
   onStart?: () => void;
   onEnd?: () => void;
   onError?: (error: string) => void;

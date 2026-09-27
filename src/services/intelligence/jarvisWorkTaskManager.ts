@@ -115,6 +115,66 @@ export class JarvisWorkTaskManager {
   }
 
   /**
+   * Creates a multi-step structured task (e.g. icon creation list, batch customization)
+   * Tracks steps, current item, waiting for external interactions, and handles quota limits
+   */
+  static createMultiStepTask(options: {
+    objective: string;
+    items: string[];
+    taskType?: JarvisTaskType;
+    title?: string;
+    silent?: boolean;
+  }): JarvisWorkTask {
+    this.init();
+    const taskId = this.generateTaskId();
+    const now = Date.now();
+    const actorType = OwnerAuthService.getActiveActorType() === 'owner' ? 'owner' : 'secondary';
+    const actorId = OwnerAuthService.getActiveActor().id;
+
+    const stepsList = options.items.map((item, idx) => ({
+      id: `step_${idx + 1}`,
+      order: idx + 1,
+      title: `Process ${item}`,
+      status: 'PENDING' as const,
+      targetItem: item,
+    }));
+
+    const task: JarvisWorkTask = {
+      taskId,
+      title: options.title || `Multi-step: ${options.objective}`,
+      originalPrompt: options.objective,
+      taskType: options.taskType || 'asset_generation',
+      status: 'PLANNED',
+      currentStage: 'QUEUED',
+      stageDescription: `Planned ${stepsList.length} steps for: ${options.objective}`,
+      progressMessage: `0/${stepsList.length} steps complete`,
+      progressPercent: 0,
+      startedAt: now,
+      updatedAt: now,
+      heartbeatTimestamp: now,
+      actorProfileId: actorId,
+      actorType,
+      canCancel: true,
+      retryCount: 0,
+      maxRetries: 3,
+      idempotencyKey: `idem_${taskId}`,
+      completedStages: [],
+      objective: options.objective,
+      stepsList,
+      currentStepIndex: 0,
+      completedStepsList: [],
+      pendingStepsList: stepsList.map((s) => s.id),
+      failedStepsList: [],
+      userPreferences: { silent: options.silent },
+    };
+
+    this.tasks.set(taskId, task);
+    this.persist();
+    this.notify();
+    return task;
+  }
+
+  /**
    * Convenience: Creates a task, opens the panel, and starts execution
    */
   static async createAndStartTask(
@@ -192,6 +252,84 @@ export class JarvisWorkTaskManager {
    * Generic stage execution pipeline
    */
   private static async runTaskLifecycle(task: JarvisWorkTask, signal: AbortSignal): Promise<void> {
+    // If task has granular multi-step items (e.g. icon creation list)
+    if (task.stepsList && task.stepsList.length > 0) {
+      for (let i = 0; i < task.stepsList.length; i++) {
+        if (signal.aborted || (task.status as string) === 'CANCELLED') {
+          return;
+        }
+
+        const step = task.stepsList[i];
+        if (step.status === 'COMPLETED') {
+          continue;
+        }
+
+        task.currentStepIndex = i;
+        step.status = 'RUNNING';
+        task.status = 'RUNNING';
+        task.stageDescription = `Processing item ${i + 1}/${task.stepsList.length}: ${step.targetItem || step.title}`;
+        task.progressMessage = `Processing ${step.targetItem || step.title}...`;
+        task.progressPercent = Math.round((i / task.stepsList.length) * 100);
+        task.updatedAt = Date.now();
+        task.heartbeatTimestamp = Date.now();
+        this.persist();
+        this.notify();
+
+        // State: WAITING (waiting for AI/external operation)
+        task.status = 'WAITING';
+        this.persist();
+        this.notify();
+
+        try {
+          await this.cancellableDelay(300, signal);
+          if (signal.aborted) return;
+
+          if (!this.isOnline) {
+            task.status = 'PAUSED_NETWORK';
+            step.status = 'WAITING';
+            this.persist();
+            this.notify();
+            return;
+          }
+
+          step.status = 'COMPLETED';
+          step.resultArtifactId = `art_${step.id}_${Date.now()}`;
+          if (!task.completedStepsList) task.completedStepsList = [];
+          task.completedStepsList.push(step.id);
+          if (task.pendingStepsList) {
+            task.pendingStepsList = task.pendingStepsList.filter((id) => id !== step.id);
+          }
+        } catch (e: any) {
+          if (e?.message?.includes('429') || e?.message?.includes('quota')) {
+            step.status = 'BLOCKED';
+            step.blockReason = 'AI_QUOTA_EXCEEDED';
+            task.status = 'BLOCKED';
+            task.blockReason = 'AI_QUOTA_EXCEEDED';
+            task.stageDescription = `Blocked at item ${i + 1}: AI quota exceeded.`;
+            if (!task.failedStepsList) task.failedStepsList = [];
+            task.failedStepsList.push(step.id);
+            this.persist();
+            this.notify();
+            return;
+          } else {
+            step.status = 'FAILED';
+            step.error = e?.message || 'Processing failed';
+            if (!task.failedStepsList) task.failedStepsList = [];
+            task.failedStepsList.push(step.id);
+          }
+        }
+
+        task.updatedAt = Date.now();
+        task.heartbeatTimestamp = Date.now();
+        this.persist();
+        this.notify();
+      }
+
+      if (task.failedStepsList && task.failedStepsList.length > 0 && task.completedStepsList && task.completedStepsList.length > 0) {
+        task.status = 'PARTIALLY_COMPLETED';
+      }
+    }
+
     const stages: JarvisTaskStage[] = this.getStagesForTaskType(task.taskType);
 
     for (const stage of stages) {

@@ -17,6 +17,7 @@ export type JarvisIntentType =
   | 'creation_request'      // Asset generation (wallpapers, themes, custom icons)
   | 'modification_request'  // Customization adjustments (Phase 9 integration)
   | 'settings_request'      // Launcher, assistant, or system preference changes
+  | 'communication_control' // Silence mode, "shut up", "work silently", speech toggles
   | 'clarification_required'// Ambiguous requests lacking essential details
   | 'unsupported_request';  // Impossible or out-of-scope requests
 
@@ -82,6 +83,8 @@ export interface JarvisEntities {
   action?: string;
   settingName?: string;
   settingValue?: string | number | boolean;
+  silenceBehavior?: 'silence' | 'resume' | 'work_silently';
+  underlyingTaskPrompt?: string;
   itemIndex?: number;
   rawKeywords?: string[];
   [key: string]: unknown;

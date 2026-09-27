@@ -29,6 +29,7 @@ export class JarvisTtsEngine {
   private static lastSpokenHash: string = '';
   private static lastSpokenTime: number = 0;
   private static watchdogTimer: ReturnType<typeof setTimeout> | null = null;
+  private static isSilenceMode: boolean = false;
 
   private static listeners: Set<() => void> = new Set();
   private static stateChangeListeners: Set<(state: JarvisVoiceStatusPhase19) => void> = new Set();
@@ -52,6 +53,20 @@ export class JarvisTtsEngine {
         };
       }
     }
+  }
+
+  /**
+   * Toggles silent execution mode (e.g. for "Shut up and complete your work")
+   */
+  static setSilenceMode(enabled: boolean): void {
+    this.isSilenceMode = enabled;
+    if (enabled) {
+      this.cancel();
+    }
+  }
+
+  static isSilent(): boolean {
+    return this.isSilenceMode;
   }
 
   /**
@@ -294,6 +309,13 @@ export class JarvisTtsEngine {
       return { success: false, reason: 'empty_text' };
     }
 
+    // Silence mode check: suppress audio output if silence mode is enabled unless urgent/forced
+    if (this.isSilenceMode && !request.force && !request.urgent) {
+      request.onStart?.();
+      request.onEnd?.();
+      return { success: true, reason: 'silenced' };
+    }
+
     // Deduplication check: prevent identical speech in rapid succession (< 600ms)
     const textHash = `${cleanSpeech}_${request.language || 'en'}`;
     const now = Date.now();
@@ -438,6 +460,13 @@ export class JarvisTtsEngine {
     this.setStatus('IDLE');
     this.speechInterruptListeners.forEach((fn) => fn(reason || 'manual_interrupt'));
     this.notify();
+  }
+
+  /**
+   * Cancels speech immediately
+   */
+  static cancel(): void {
+    this.interrupt('cancelled');
   }
 
   /**

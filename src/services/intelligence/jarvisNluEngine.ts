@@ -162,6 +162,13 @@ export class JarvisNluEngine {
       return context.lastIntentType;
     }
 
+    // Communication Control & Silence Behavior (e.g., "Shut up", "Work silently", "Don't talk, just do it")
+    if (
+      /\b(?:shut\s*up|stop\s*talking|stop\s*speaking|don'?t\s*talk|quiet\s*mode|work\s*silently|silent\s*mode|don'?t\s*keep\s*asking|just\s*finish|just\s*complete|just\s*do\s*it|chup\s*raho|bolna\s*band|shant\s*raho|awaz\s*band)\b/i.test(lower)
+    ) {
+      return 'communication_control';
+    }
+
     // 2. Greetings / Conversational
     if (/^(?:hi|hello|hey|namaste|kem cho|sat sri akal|good morning|good evening|who are you|how are you|what's up|jarvis)\b/i.test(lower) && !entities.application && !entities.query) {
       return 'conversation';
@@ -371,6 +378,10 @@ export class JarvisNluEngine {
       return `Device control targeting "${entities.settingName || 'setting'}" with value: ${entities.settingValue ?? 'toggle'}.`;
     }
 
+    if (intentType === 'communication_control') {
+      return 'User requested silence mode / communication control. Spoken narration suppressed while task continuation proceeds.';
+    }
+
     if (intentType === 'search_request' || intentType === 'information_request') {
       return `Information query regarding "${entities.query || 'topic'}".`;
     }
@@ -400,6 +411,10 @@ export class JarvisNluEngine {
     if (intentType === 'device_request') {
       const state = entities.settingValue === true ? 'ON' : entities.settingValue === false ? 'OFF' : 'toggle';
       return `Setting ${entities.settingName} to ${state}.`;
+    }
+
+    if (intentType === 'communication_control') {
+      return 'Understood. Working silently in the background.';
     }
 
     if (intentType === 'information_request' || intentType === 'search_request') {

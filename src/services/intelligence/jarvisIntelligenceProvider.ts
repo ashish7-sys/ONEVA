@@ -20,6 +20,8 @@ import { JarvisResearchService } from './search/jarvisResearchService';
 import { JarvisActionSelector } from '../actions/jarvisActionSelector';
 import { JarvisMemoryRetrievalService } from '../memory/jarvisMemoryRetrievalService';
 import { JarvisEdgeNeuralService } from '../edge/jarvisEdgeNeuralService';
+import { JarvisTtsEngine } from '../voice/jarvisTtsEngine';
+import { JarvisPersonalityEngine } from './jarvisPersonalityEngine';
 
 /**
  * High-performance, local-first on-device intelligence provider with Edge Neural Core
@@ -138,8 +140,33 @@ export class JarvisIntelligenceService {
       }
 
       // 3. Central Task Planner
-      const plan = JarvisTaskPlanner.planTask(intent);
+      let plan = JarvisTaskPlanner.planTask(intent);
       let friendlyResponse = intent.suggestedResponse || plan.planSummary;
+
+      // Handle Communication Control (e.g., "Shut up and complete your work", "Work silently")
+      if (intent.intentType === 'communication_control') {
+        JarvisTtsEngine.setSilenceMode(true);
+        JarvisPersonalityEngine.savePreferences({ silenceMode: true });
+        plan.status = 'COMPLETED';
+        friendlyResponse = 'Understood. Operating silently.';
+
+        const taskPart = trimmed.replace(/^(?:shut\s*up|stop\s*talking|don'?t\s*talk|work\s*silently|chup\s*raho|bolna\s*band\s*karo)\s*(?:and|aur|,)?\s*/i, '').trim();
+        if (taskPart && taskPart.length > 3) {
+          try {
+            const sub = await this.processUserInput(taskPart);
+            friendlyResponse = sub.friendlyResponse;
+            plan = sub.plan;
+          } catch (e) {
+            console.warn('[JarvisIntelligence] Subtask execution error:', e);
+          }
+        }
+
+        return {
+          intent,
+          plan,
+          friendlyResponse,
+        };
+      }
 
       // 4. Phase 14: Check Jarvis Memory & Personal Context Retrieval
       const memoryResult = JarvisMemoryRetrievalService.analyzeQuery(trimmed, intent.detectedLanguage);

@@ -6,12 +6,16 @@
  */
 
 export type JarvisLongRunningTaskStatus =
+  | 'PLANNED'
   | 'QUEUED'
   | 'STARTING'
   | 'RUNNING'
+  | 'WAITING'
   | 'PAUSED_NETWORK'
   | 'RETRYING'
+  | 'PARTIALLY_COMPLETED'
   | 'COMPLETED'
+  | 'BLOCKED'
   | 'FAILED'
   | 'CANCELLED';
 
@@ -24,6 +28,24 @@ export type JarvisTaskStage =
   | 'VERIFYING'
   | 'FINALIZING'
   | 'COMPLETED';
+
+export type JarvisTaskBlockReason =
+  | 'AI_QUOTA_EXCEEDED'
+  | 'NETWORK_OFFLINE'
+  | 'PERMISSION_DENIED'
+  | 'API_UNAVAILABLE'
+  | 'USER_INTERVENTION_NEEDED';
+
+export interface JarvisTaskStepDetail {
+  id: string;
+  order: number;
+  title: string;
+  status: 'PENDING' | 'RUNNING' | 'WAITING' | 'COMPLETED' | 'FAILED' | 'BLOCKED';
+  targetItem?: string;
+  resultArtifactId?: string;
+  error?: string;
+  blockReason?: JarvisTaskBlockReason;
+}
 
 export type JarvisTaskType =
   | 'web_research'
@@ -80,6 +102,14 @@ export interface JarvisWorkTask {
   maxRetries: number;
   idempotencyKey: string;
   completedStages: JarvisTaskStage[];
+  objective?: string;
+  stepsList?: JarvisTaskStepDetail[];
+  currentStepIndex?: number;
+  completedStepsList?: string[];
+  pendingStepsList?: string[];
+  failedStepsList?: string[];
+  blockReason?: JarvisTaskBlockReason;
+  userPreferences?: { silent?: boolean; autoSave?: boolean };
 }
 
 export interface JarvisWorkPanelNotification {

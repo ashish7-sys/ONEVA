@@ -232,6 +232,74 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    private boolean isVolumeUpPressed = false;
+    private boolean isVolumeDownPressed = false;
+    private int emergencyTapCount = 0;
+    private long lastEmergencyTapTime = 0;
+
+    @Override
+    public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+        int keyCode = event.getKeyCode();
+        int action = event.getAction();
+
+        if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP) {
+            if (action == android.view.KeyEvent.ACTION_DOWN) {
+                isVolumeUpPressed = true;
+            } else if (action == android.view.KeyEvent.ACTION_UP) {
+                isVolumeUpPressed = false;
+                emergencyTapCount = 0;
+            }
+        } else if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN) {
+            if (action == android.view.KeyEvent.ACTION_DOWN) {
+                isVolumeDownPressed = true;
+            } else if (action == android.view.KeyEvent.ACTION_UP) {
+                isVolumeDownPressed = false;
+                emergencyTapCount = 0;
+            }
+        }
+        return super.dispatchKeyEvent(event);
+    }
+
+    @Override
+    public boolean dispatchTouchEvent(android.view.MotionEvent ev) {
+        if (ev.getAction() == android.view.MotionEvent.ACTION_DOWN) {
+            if (isVolumeUpPressed && isVolumeDownPressed) {
+                long now = System.currentTimeMillis();
+                if (emergencyTapCount > 0 && now - lastEmergencyTapTime > 3000) {
+                    emergencyTapCount = 1;
+                } else {
+                    emergencyTapCount++;
+                }
+                lastEmergencyTapTime = now;
+
+                if (emergencyTapCount >= 5) {
+                    emergencyTapCount = 0;
+                    triggerEmergencyReset();
+                }
+            }
+        }
+        return super.dispatchTouchEvent(ev);
+    }
+
+    public void triggerEmergencyReset() {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (webView != null) {
+                    webView.evaluateJavascript(
+                        "if (window.dispatchEvent) { window.dispatchEvent(new CustomEvent('oneva-emergency-reset-native')); }",
+                        null
+                    );
+                }
+                android.widget.Toast.makeText(
+                    MainActivity.this,
+                    "ONEVA Emergency Reset Triggered: Safe Mode Active",
+                    android.widget.Toast.LENGTH_LONG
+                ).show();
+            }
+        });
+    }
+
     @Override
     protected void onResume() {
         super.onResume();

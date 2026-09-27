@@ -25,6 +25,7 @@ import { UserProfileService } from '../services/userProfileService';
 import { UserNameModal } from '../components/UserNameOnboardingModal';
 import { ThemeEngineService } from '../services/themeEngineService';
 import { AdminAssetService } from '../services/adminAssetService';
+import { FullPackModal } from '../components/FullPackModal';
 
 interface HomePageProps {
   onNavigate: (page: PageId, subSection?: string) => void;
@@ -41,6 +42,7 @@ export function HomePage({ onNavigate }: HomePageProps) {
     return s.appliedThemeDefinition?.name || (s.activeThemeId ? AdminAssetService.getAssetById(s.activeThemeId)?.name : '') || 'None';
   });
   const [showNameModal, setShowNameModal] = useState(false);
+  const [showFullPackModal, setShowFullPackModal] = useState(false);
 
   const catalogCount = AppCatalogService.getFinalizedCatalogCount();
 
@@ -159,6 +161,34 @@ export function HomePage({ onNavigate }: HomePageProps) {
           <p className="text-xs sm:text-sm text-slate-400">
             Your Android. Your Style. <span className="text-slate-200">Make it truly yours with ONEVA.</span>
           </p>
+        </div>
+      </div>
+
+      {/* Prominent Action: APPLY FULL ONEVA PACK (User Mandate: First Main Page / Top Area) */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#0d2a2a]/90 via-[#0a2038]/90 to-[#0d1430]/90 border border-emerald-500/35 p-5 sm:p-6 shadow-2xl shadow-emerald-950/40 backdrop-blur-xl">
+        <div className="absolute top-0 right-0 w-56 h-56 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/30 text-[10px] font-mono uppercase tracking-wider text-emerald-300 font-semibold">
+              <Sparkles className="w-3 h-3 text-emerald-400" />
+              <span>Complete System Experience</span>
+            </div>
+            <h2 className="text-lg sm:text-xl font-bold tracking-tight text-white flex items-center gap-2">
+              Apply Full ONEVA Pack
+            </h2>
+            <p className="text-xs text-slate-300 max-w-lg leading-relaxed">
+              Instantly calibrates the curated suite: OLED Theme, 1,250+ Vector Icons, Tactile Keyboard, Reactive Live Wallpaper &amp; JARVIS AI.
+            </p>
+          </div>
+
+          <button
+            id="home-apply-full-oneva-pack-btn"
+            onClick={() => setShowFullPackModal(true)}
+            className="w-full sm:w-auto px-6 py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-neutral-950 font-bold text-xs uppercase tracking-wider shadow-lg shadow-emerald-950/60 hover:shadow-cyan-950/70 transition-all cursor-pointer active:scale-95 flex items-center justify-center gap-2.5 shrink-0"
+          >
+            <Sparkles className="w-4 h-4 fill-neutral-950" />
+            <span>Apply Full ONEVA Pack</span>
+          </button>
         </div>
       </div>
 
@@ -362,6 +392,20 @@ export function HomePage({ onNavigate }: HomePageProps) {
           isOpen={showNameModal}
           onClose={() => setShowNameModal(false)}
           onSaved={(n) => setUserName(n)}
+        />
+      )}
+
+      {/* Full ONEVA Pack Execution Modal */}
+      {showFullPackModal && (
+        <FullPackModal
+          isOpen={showFullPackModal}
+          onClose={() => setShowFullPackModal(false)}
+          onApplied={() => {
+            setUserState(UserCustomizationService.getState());
+            setActivePackName(IconService.getActivePackName());
+            const s = ThemeEngineService.getSettings();
+            setActiveThemeName(s.appliedThemeDefinition?.name || (s.activeThemeId ? AdminAssetService.getAssetById(s.activeThemeId)?.name : '') || 'None');
+          }}
         />
       )}
     </div>

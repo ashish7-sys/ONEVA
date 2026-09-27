@@ -13,6 +13,8 @@ import { OnevaPermissionManager } from './services/onevaPermissionManager';
 import { JarvisGlobalWakeService } from './services/voice/jarvisGlobalWakeService';
 import { UserProfileService } from './services/userProfileService';
 import { UserNameModal } from './components/UserNameOnboardingModal';
+import { EmergencyResetService } from './services/emergencyResetService';
+import { EmergencySafeModeBanner } from './components/EmergencySafeModeBanner';
 
 const ADMIN_VIEW_STORAGE_KEY = 'oneva_admin_view_active';
 
@@ -43,6 +45,7 @@ export default function App() {
 
   // Check URL query parameters or active admin session on initial mount
   useEffect(() => {
+    EmergencyResetService.init();
     JarvisGlobalWakeService.init();
 
     if (typeof window !== 'undefined') {
@@ -109,6 +112,9 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      {/* Emergency Global Reset Safe Mode Banner */}
+      <EmergencySafeModeBanner />
+
       {/* Official Startup / Splash Experience on Initial Launch */}
       {showInitialSplash && (
         <OnevaSplashScreen

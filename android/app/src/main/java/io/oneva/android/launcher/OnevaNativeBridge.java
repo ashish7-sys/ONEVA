@@ -561,4 +561,24 @@ public class OnevaNativeBridge {
         if (service == null) return "[]";
         return service.getVisibleScreenNodesJson();
     }
+
+    /**
+     * Checks if Emergency Safe Mode is active on native Android.
+     */
+    @JavascriptInterface
+    public boolean isEmergencySafeMode() {
+        return context.getSharedPreferences("oneva_emergency_prefs", Context.MODE_PRIVATE)
+            .getBoolean("emergency_safe_mode", false);
+    }
+
+    /**
+     * Toggles Emergency Safe Mode status on native Android.
+     */
+    @JavascriptInterface
+    public void setEmergencySafeMode(boolean enabled) {
+        context.getSharedPreferences("oneva_emergency_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("emergency_safe_mode", enabled)
+            .apply();
+    }
 }

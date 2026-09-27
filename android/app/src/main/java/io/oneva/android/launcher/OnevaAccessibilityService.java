@@ -54,9 +54,74 @@ public class OnevaAccessibilityService extends AccessibilityService {
         instance = this;
     }
 
+    private boolean isVolumeUpHeld = false;
+    private boolean isVolumeDownHeld = false;
+    private int globalTapCount = 0;
+    private long lastGlobalTapTime = 0;
+
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        // Event stream processing for window updates
+        if (event.getEventType() == AccessibilityEvent.TYPE_VIEW_CLICKED) {
+            if (isVolumeUpHeld && isVolumeDownHeld) {
+                long now = System.currentTimeMillis();
+                if (globalTapCount > 0 && now - lastGlobalTapTime > 3000) {
+                    globalTapCount = 1;
+                } else {
+                    globalTapCount++;
+                }
+                lastGlobalTapTime = now;
+
+                if (globalTapCount >= 5) {
+                    globalTapCount = 0;
+                    handleGlobalEmergencyReset();
+                }
+            }
+        }
+    }
+
+    @Override
+    protected boolean onKeyEvent(android.view.KeyEvent event) {
+        int keyCode = event.getKeyCode();
+        int action = event.getAction();
+
+        if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP) {
+            if (action == android.view.KeyEvent.ACTION_DOWN) {
+                isVolumeUpHeld = true;
+            } else if (action == android.view.KeyEvent.ACTION_UP) {
+                isVolumeUpHeld = false;
+                globalTapCount = 0;
+            }
+        } else if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN) {
+            if (action == android.view.KeyEvent.ACTION_DOWN) {
+                isVolumeDownHeld = true;
+            } else if (action == android.view.KeyEvent.ACTION_UP) {
+                isVolumeDownHeld = false;
+                globalTapCount = 0;
+            }
+        }
+        return super.onKeyEvent(event);
+    }
+
+    private void handleGlobalEmergencyReset() {
+        MainActivity act = MainActivity.getInstance();
+        if (act != null) {
+            act.triggerEmergencyReset();
+        } else {
+            getSharedPreferences("oneva_emergency_prefs", MODE_PRIVATE)
+                .edit()
+                .putBoolean("emergency_safe_mode", true)
+                .apply();
+            mainHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    android.widget.Toast.makeText(
+                        OnevaAccessibilityService.this,
+                        "ONEVA Global Emergency Reset: Safe Mode Active",
+                        android.widget.Toast.LENGTH_LONG
+                    ).show();
+                }
+            });
+        }
     }
 
     @Override
