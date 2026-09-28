@@ -217,6 +217,7 @@ export interface OnevaAsset {
     profileType?: string;
     previewDataUrl?: string;
     previewThumbnailUrl?: string;
+    posterUrl?: string;
     hasStoredMedia?: boolean;
     systemUiComponent?: 'quick_settings' | 'volume_panel' | 'status_bar' | 'search_bar' | 'lock_screen';
     customData?: Record<string, unknown>;

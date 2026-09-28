@@ -24,7 +24,6 @@ import {
 import { AdminProfile } from '../types';
 import { AuthService } from '../services/authService';
 import { AdminDashboard } from './AdminDashboard';
-import { AdminModifyApps } from './AdminModifyApps';
 import { AdminAppCatalog } from './AdminAppCatalog';
 import { AdminFullIconPacks } from './AdminFullIconPacks';
 import { AdminSingleAppIcons } from './AdminSingleAppIcons';
@@ -43,7 +42,6 @@ interface AdminLayoutProps {
 export type AdminTab =
   | 'dashboard'
   | 'app_catalog'
-  | 'modify_apps'
   | 'themes'
   | 'icons'
   | 'keyboard'
@@ -66,7 +64,6 @@ export function AdminLayout({ admin, onSignOut, onExitToApp }: AdminLayoutProps)
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
     { id: 'app_catalog', label: 'App Catalog', icon: Smartphone },
-    { id: 'modify_apps', label: 'Modify Apps', icon: Sliders },
     { id: 'themes', label: 'Themes', icon: Palette },
     { id: 'icons', label: 'Icon Engine', icon: Package },
     { id: 'keyboard', label: 'Keyboard', icon: Keyboard },
@@ -156,8 +153,6 @@ export function AdminLayout({ admin, onSignOut, onExitToApp }: AdminLayoutProps)
         {activeTab === 'dashboard' && <AdminDashboard />}
 
         {activeTab === 'app_catalog' && <AdminAppCatalog />}
-
-        {activeTab === 'modify_apps' && <AdminModifyApps />}
 
         {activeTab === 'themes' && (
           <AdminCategoryView

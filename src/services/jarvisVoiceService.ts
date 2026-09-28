@@ -54,6 +54,7 @@ import { JarvisSamplingHyperparamsController } from './intelligence/jarvisSampli
 import { JarvisAdversarialGuardrailService } from './intelligence/jarvisAdversarialGuardrailService';
 import { JarvisAudioPhonemeEngine } from './voice/jarvisAudioPhonemeEngine';
 import { JarvisVisualStateManager } from './jarvis/jarvisVisualStateManager';
+import { JarvisSpeechManager } from './voice/jarvisSpeechManager';
 
 export interface JarvisCommandEvent {
   id: string;
@@ -454,66 +455,54 @@ export class JarvisVoiceService {
    * Safe Voice Interruption: immediately stops all speech and returns to IDLE/AWAKE
    */
   static interrupt(): void {
-    JarvisTtsEngine.interrupt();
+    JarvisSpeechManager.stopSpeaking();
     AssistService.setReactionState('idle');
     if (this.currentState === 'RESPONDING' || this.currentState === 'PROCESSING') {
       this.onCommandCompleted();
     } else {
-      this.transitionTo('SLEEPING');
+      this.transitionTo('AWAKE');
     }
   }
 
   /**
-   * Speaks a specified text using the Phase 19 TTS engine and personality preferences
+   * Speaks a specified text using the centralized JarvisSpeechManager
    */
   static speakText(text: string, language?: string, onComplete?: () => void): { success: boolean; reason?: string } {
     const prefs = JarvisPersonalityEngine.getPreferences();
     if (!prefs.voiceEnabled) {
       if (onComplete) {
-        setTimeout(onComplete, 1200);
+        setTimeout(onComplete, 600);
       }
       return { success: false, reason: 'voice_disabled_in_settings' };
     }
 
     const langTarget: 'en' | 'hi' = (language?.startsWith('hi') || prefs.language === 'hi') ? 'hi' : 'en';
     const enriched = JarvisStarkWitEngine.enrichSpokenText(text, langTarget);
-    const gender = prefs.voiceGender || 'male';
 
-    return JarvisTtsEngine.speak({
+    JarvisSpeechManager.speak({
       id: `manual_speak_${Date.now()}`,
       text: enriched.spokenText,
       spokenText: enriched.spokenText,
       language: language || (prefs.language === 'auto' ? 'en' : prefs.language),
-      gender,
-      voiceURI: prefs.selectedVoiceURI,
-      rate: enriched.prosody.rate * (prefs.speechRate || 0.9),
-      pitch: enriched.prosody.pitch * (prefs.speechPitch || (gender === 'male' ? 0.88 : 1.08)),
+      priority: 'high',
       onStart: () => {
-        JarvisTtsEngine.setStatus('SPEAKING');
         this.notify();
       },
       onEnd: () => {
-        JarvisTtsEngine.setStatus('SUCCESS');
-        setTimeout(() => {
-          JarvisTtsEngine.setStatus('IDLE');
-          this.notify();
-          onComplete?.();
-        }, 600);
+        this.notify();
+        onComplete?.();
       },
       onError: () => {
-        JarvisTtsEngine.setStatus('ERROR');
-        setTimeout(() => {
-          JarvisTtsEngine.setStatus('IDLE');
-          this.notify();
-          onComplete?.();
-        }, 1200);
+        this.notify();
+        onComplete?.();
       },
       onInterrupted: () => {
-        JarvisTtsEngine.setStatus('IDLE');
         this.notify();
         onComplete?.();
       },
     });
+
+    return { success: true };
   }
 
   /**
@@ -662,33 +651,21 @@ export class JarvisVoiceService {
       PlatformBridge.wakeScreenNow();
     }
 
+    // 4. Activate Jarvis visual awake state over normal wallpaper
+    JarvisVisualStateManager.wakeUp(`Background wake (${wakeName})`);
+
     this.saveSettings({ lastUsedAlias: wakeName });
     this.resetActiveSessionTimer();
-    this.transitionTo('LISTENING_FOR_COMMAND');
+    this.transitionTo('AWAKE');
+    this.startAwakeTimer(settings.continuousTurnTakingTimeoutMs || 120000);
 
-    const greeting = settings.selectedLanguage === 'hi'
-      ? `हाँ जी, मैं सुन रहा हूँ। आदेश दें?`
-      : `Online and listening, Sir. How can I assist you?`;
-
-    this.lastResponseText = greeting;
+    this.lastResponseText = settings.selectedLanguage === 'hi'
+      ? `सुन रहा हूँ।`
+      : `Listening, Sir.`;
     this.notify();
 
-    // Speak voice greeting
-    const prefs = JarvisPersonalityEngine.getPreferences();
-    JarvisTtsEngine.speak({
-      id: `wake_${Date.now()}`,
-      text: greeting,
-      spokenText: greeting,
-      language: settings.selectedLanguage === 'hi' ? 'hi-IN' : 'en-US',
-      gender: prefs.voiceGender || 'male',
-      voiceURI: prefs.selectedVoiceURI,
-      rate: prefs.speechRate || 0.9,
-      pitch: prefs.speechPitch || 0.88,
-      onEnd: () => {
-        // Resume listening for command after speaking greeting
-        this.restartListening();
-      },
-    });
+    // Resume listening for command without unnecessary monologue
+    this.restartListening();
   }
 
   private static async restartListening(): Promise<void> {
@@ -826,6 +803,39 @@ export class JarvisVoiceService {
     const alias = matchedAlias || this.getSettings().lastUsedAlias || 'Jarvis';
     const cleanCommand = commandText.trim();
     const settings = this.getSettings();
+
+    // ============================================================
+    // MANDATE 7: SPEECH CANCELLATION ("Chup raho", "Stop", "Be quiet", "Silence")
+    // ============================================================
+    const isStopCommand = /^(?:stop|be quiet|quiet|shut up|shutup|silence|stop talking|pause|cancel|chup|chup raho|ruk jao|bas karo|बोलना बंद करो|शांत रहो|चुप रहो|रुक जाओ)$/i.test(cleanCommand) ||
+      /\b(?:chup raho|shut up|be quiet|stop talking|silence now|चुप रहो|बोलना बंद)\b/i.test(cleanCommand);
+
+    if (isStopCommand) {
+      JarvisSpeechManager.stopSpeaking();
+      this.transitionTo('AWAKE');
+      JarvisVisualStateManager.setState('JARVIS_AWAKE_IDLE');
+      this.lastResponseText = settings.selectedLanguage === 'hi' ? 'चुप।' : 'Stopped.';
+      this.onCommandCompleted();
+      this.notify();
+      return;
+    }
+
+    // ============================================================
+    // MANDATE 8: SLEEP STATE TRANSITION ("Jarvis so jao", "Sleep", "Rest")
+    // ============================================================
+    const isSleepCommand = /^(?:jarvis\s+)?(?:so\s*jao|sleep|go\s+to\s+sleep|deactivate|rest|deactivate\s+jarvis|jarvis\s+rest|सो\s*जाओ|आराम\s*करो)$/i.test(cleanCommand) ||
+      /\b(?:so jao|go to sleep|deactivate jarvis|jarvis rest|सो जाओ)\b/i.test(cleanCommand);
+
+    if (isSleepCommand) {
+      JarvisSpeechManager.stopSpeaking();
+      this.transitionTo('SLEEPING');
+      JarvisVisualStateManager.dismiss();
+      this.clearAwakeTimer();
+      this.clearActiveSessionTimer();
+      this.lastResponseText = settings.selectedLanguage === 'hi' ? 'सो रहा हूँ।' : 'Sleeping.';
+      this.notify();
+      return;
+    }
 
     // ============================================================
     // USER MANDATE: Multilingual Language Switching & Voice Commands
@@ -1490,44 +1500,36 @@ export class JarvisVoiceService {
       this.transitionTo('RESPONDING');
       this.commandListeners.forEach((listener) => listener(event));
 
-      // Phase 19: Speak via Premium TTS Engine
+      // Speak via Centralized JarvisSpeechManager
       const prefs = JarvisPersonalityEngine.getPreferences();
       if (prefs.voiceEnabled) {
-        JarvisTtsEngine.speak({
+        JarvisSpeechManager.speak({
           id: event.id,
           text: formatted.displayText,
           spokenText: formatted.spokenText,
           language: formatted.language,
-          gender: prefs.voiceGender || 'male',
-          voiceURI: prefs.selectedVoiceURI,
-          rate: prefs.speechRate,
-          pitch: prefs.speechPitch,
+          priority: 'high',
           onStart: () => {
-            JarvisTtsEngine.setStatus('SPEAKING');
             if (settings.pipelineMode === 'turn_based') {
               this.provider?.stopListening().catch(() => {});
             }
             this.notify();
           },
           onEnd: () => {
-            JarvisTtsEngine.setStatus('SUCCESS');
             if (settings.pipelineMode === 'turn_based') {
               this.restartListening();
             }
             setTimeout(() => {
-              JarvisTtsEngine.setStatus('IDLE');
               this.onCommandCompleted();
-            }, 600);
+            }, 300);
           },
           onError: () => {
-            JarvisTtsEngine.setStatus('IDLE');
             if (settings.pipelineMode === 'turn_based') {
               this.restartListening();
             }
             this.onCommandCompleted();
           },
           onInterrupted: () => {
-            JarvisTtsEngine.setStatus('IDLE');
             if (settings.pipelineMode === 'turn_based') {
               this.restartListening();
             }

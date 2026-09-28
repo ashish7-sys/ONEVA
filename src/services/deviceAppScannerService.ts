@@ -326,6 +326,14 @@ export class DeviceAppScannerService {
   }
 
   /**
+   * Forces cache invalidation and immediate re-scan of installed packages
+   */
+  static rescan(): Set<string> {
+    this.cachedPackages = null;
+    return this.getInstalledPackages();
+  }
+
+  /**
    * Telemetry summary of device scan
    */
   static getScanSummary(): DeviceScanResult {

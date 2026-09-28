@@ -24,6 +24,9 @@ import { AssistService, AssistantName, AssistConfig } from '../services/assistSe
 import { JarvisVoiceService } from '../services/jarvisVoiceService';
 import { JarvisGlobalWakeService, GlobalWakeStatus } from '../services/voice/jarvisGlobalWakeService';
 import { PlatformBridge } from '../launcher/services/platformBridge';
+import { JarvisVisualStateManager, JarvisVisualState } from '../services/jarvis/jarvisVisualStateManager';
+import { JarvisSpeechManager } from '../services/voice/jarvisSpeechManager';
+import { HandControlService } from '../services/intelligence/gestures/handControlService';
 
 interface JarvisConfigPageProps {
   onNavigateBack?: () => void;
@@ -38,6 +41,8 @@ export function JarvisConfigPage({ onNavigateBack }: JarvisConfigPageProps) {
 
   // Modals for sub-configurations
   const [activeModal, setActiveModal] = useState<'voice' | 'permissions' | 'actions' | 'wake_word' | null>(null);
+  const [visualState, setVisualState] = useState<JarvisVisualState>(JarvisVisualStateManager.getState());
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(JarvisSpeechManager.isSpeaking());
 
   useEffect(() => {
     JarvisVoiceService.init();
@@ -51,9 +56,29 @@ export function JarvisConfigPage({ onNavigateBack }: JarvisConfigPageProps) {
       setWakeStatus(JarvisGlobalWakeService.getStatus());
     });
 
+    const unsubVisual = JarvisVisualStateManager.subscribe((state) => {
+      setVisualState(state);
+    });
+
+    const unsubSpeechStart = JarvisSpeechManager.onSpeechStarted(() => {
+      setIsSpeaking(true);
+    });
+
+    const unsubSpeechEnd = JarvisSpeechManager.onSpeechFinished(() => {
+      setIsSpeaking(false);
+    });
+
+    const unsubSpeechCancel = JarvisSpeechManager.onSpeechCancelled(() => {
+      setIsSpeaking(false);
+    });
+
     return () => {
       unsubAssist();
       unsubWake();
+      unsubVisual();
+      unsubSpeechStart();
+      unsubSpeechEnd();
+      unsubSpeechCancel();
     };
   }, []);
 
@@ -209,6 +234,218 @@ export function JarvisConfigPage({ onNavigateBack }: JarvisConfigPageProps) {
             } shadow-md`}
           />
         </button>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* JARVIS REACTIVE VISUAL SYSTEM & STATE ARCHITECTURE (Section 1, 2, 3, 4, 14, 22) */}
+      {/* ========================================================================= */}
+      <div className="rounded-2xl bg-neutral-900/70 border border-cyan-500/30 p-4 sm:p-5 space-y-4 shadow-xl shadow-cyan-950/20">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-white/10">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+              <h2 className="text-sm font-bold text-white tracking-wide uppercase font-mono">
+                JARVIS Reactive Visual System
+              </h2>
+            </div>
+            <p className="text-[11px] text-neutral-400 mt-0.5">
+              5 distinct interaction states rendered over your normal wallpaper without overwriting it.
+            </p>
+          </div>
+
+          {/* Current State Pill */}
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[10px] font-mono uppercase px-2.5 py-1 rounded-full bg-black/60 border border-cyan-500/40 text-cyan-300 font-bold">
+              {visualState}
+            </span>
+            {isSpeaking && (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-semibold animate-pulse">
+                TTS SPEAKING
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* 5 Distinct States Overview */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 text-xs">
+          {/* State 1 */}
+          <div className={`p-3 rounded-xl border transition ${
+            visualState === 'JARVIS_NOT_AWAKE'
+              ? 'bg-neutral-800/80 border-emerald-500/50 text-white'
+              : 'bg-white/[0.02] border-white/5 text-neutral-400'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-white font-mono text-[11px]">1. NOT AWAKE / SLEEP</span>
+              {visualState === 'JARVIS_NOT_AWAKE' && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 font-mono">ACTIVE</span>
+              )}
+            </div>
+            <p className="text-[11px] text-neutral-400 mt-1">
+              Normal user wallpaper visible. Reactive layer inactive. Battery &amp; GPU saved.
+            </p>
+          </div>
+
+          {/* State 2 */}
+          <div className={`p-3 rounded-xl border transition ${
+            visualState === 'JARVIS_AWAKE_IDLE'
+              ? 'bg-neutral-800/80 border-cyan-500/50 text-white'
+              : 'bg-white/[0.02] border-white/5 text-neutral-400'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-white font-mono text-[11px]">2. AWAKE BUT IDLE</span>
+              {visualState === 'JARVIS_AWAKE_IDLE' && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono">ACTIVE</span>
+              )}
+            </div>
+            <p className="text-[11px] text-neutral-400 mt-1">
+              Subtle reactive presence over normal wallpaper. Calm breathing aura. Ready for command.
+            </p>
+          </div>
+
+          {/* State 3 */}
+          <div className={`p-3 rounded-xl border transition ${
+            visualState === 'JARVIS_SHORT_COMMAND'
+              ? 'bg-neutral-800/80 border-cyan-500/50 text-white'
+              : 'bg-white/[0.02] border-white/5 text-neutral-400'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-white font-mono text-[11px]">3. SHORT COMMAND</span>
+              {visualState === 'JARVIS_SHORT_COMMAND' && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-400 font-mono">ACTIVE</span>
+              )}
+            </div>
+            <p className="text-[11px] text-neutral-400 mt-1">
+              Immediate action execution. Quick acknowledgement pulse. Returns to idle.
+            </p>
+          </div>
+
+          {/* State 4 */}
+          <div className={`p-3 rounded-xl border transition ${
+            visualState === 'JARVIS_LONG_TASK'
+              ? 'bg-neutral-800/80 border-purple-500/50 text-white'
+              : 'bg-white/[0.02] border-white/5 text-neutral-400'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-white font-mono text-[11px]">4. LONG TASK / RESEARCH</span>
+              {visualState === 'JARVIS_LONG_TASK' && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 font-mono">ACTIVE</span>
+              )}
+            </div>
+            <p className="text-[11px] text-neutral-400 mt-1">
+              Research visualization active over wallpaper. Closing panel never kills background research.
+            </p>
+          </div>
+
+          {/* State 5 */}
+          <div className={`p-3 rounded-xl border transition ${
+            visualState === 'JARVIS_HAND_CONTROL'
+              ? 'bg-neutral-800/80 border-amber-500/50 text-white'
+              : 'bg-white/[0.02] border-white/5 text-neutral-400'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-white font-mono text-[11px]">5. HAND CONTROL</span>
+              {visualState === 'JARVIS_HAND_CONTROL' && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-mono">ACTIVE</span>
+              )}
+            </div>
+            <p className="text-[11px] text-neutral-400 mt-1">
+              Full 3D interactive Energy Sphere (24,000 particles) with camera air gestures.
+            </p>
+          </div>
+
+          {/* Speaking Reactive Visual */}
+          <div className={`p-3 rounded-xl border transition ${
+            isSpeaking
+              ? 'bg-rose-950/30 border-rose-500/50 text-white animate-pulse'
+              : 'bg-white/[0.02] border-white/5 text-neutral-400'
+          }`}>
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-white font-mono text-[11px]">SPEAKING ANIMATION</span>
+              {isSpeaking && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded bg-rose-500/30 text-rose-300 font-mono">PULSING</span>
+              )}
+            </div>
+            <p className="text-[11px] text-neutral-400 mt-1">
+              Dynamically pulses &amp; moves vertically with real TTS speech intensity. Settles to idle on stop.
+            </p>
+          </div>
+        </div>
+
+        {/* Live Test Triggers */}
+        <div className="pt-2 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              PlatformBridge.performHapticFeedback('confirm');
+              JarvisVisualStateManager.wakeUp('Config test');
+              JarvisVoiceService.wakeFromBackground('Jarvis');
+              showToast('Woken up! Reactive visual layer active over wallpaper.');
+            }}
+            className="px-3 py-1.5 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-500/40 text-xs font-semibold text-cyan-300 transition"
+          >
+            Wake (&ldquo;Hey Jarvis&rdquo;)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              PlatformBridge.performHapticFeedback('confirm');
+              JarvisSpeechManager.speak({
+                id: `test_speech_${Date.now()}`,
+                text: 'All systems are operating at peak efficiency, Sir.',
+                priority: 'high',
+              });
+              showToast('Speaking test started. Watch reactive vertical pulsing.');
+            }}
+            className="px-3 py-1.5 rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-500/40 text-xs font-semibold text-purple-300 transition"
+          >
+            Test Speaking Reaction
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              PlatformBridge.performHapticFeedback('confirm');
+              JarvisSpeechManager.stopSpeaking();
+              showToast('Speech cancelled! Reactive visual immediately returned to calm.');
+            }}
+            className="px-3 py-1.5 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-xs font-semibold text-rose-300 transition"
+          >
+            Stop (&ldquo;Chup raho&rdquo;)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              PlatformBridge.performHapticFeedback('confirm');
+              JarvisSpeechManager.stopSpeaking();
+              JarvisVisualStateManager.dismiss();
+              JarvisVoiceService.interrupt();
+              showToast('Jarvis asleep. Normal wallpaper 100% visible.');
+            }}
+            className="px-3 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 text-xs font-semibold text-neutral-300 transition"
+          >
+            Sleep (&ldquo;Jarvis so jao&rdquo;)
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              PlatformBridge.performHapticFeedback('confirm');
+              const next = visualState !== 'JARVIS_HAND_CONTROL';
+              JarvisVisualStateManager.setHandControl(next);
+              if (next) {
+                HandControlService.enableHandControl().catch(() => {});
+              } else {
+                HandControlService.disableHandControl();
+              }
+              showToast(next ? 'Hand Control 3D WebGL activated.' : 'Hand Control exited.');
+            }}
+            className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-xs font-semibold text-amber-300 transition"
+          >
+            Toggle Hand Control
+          </button>
+        </div>
       </div>
 
       {/* Settings Rows (Reference Screen 4: Voice & Language, Permissions, Actions, Wake Word) */}

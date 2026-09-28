@@ -26,7 +26,6 @@ export interface AndroidActionResult {
 export class AndroidActionBridge {
   private static readonly VALID_SECTIONS: PageId[] = [
     'home',
-    'modify_apps',
     'library',
     'themes',
     'icons',

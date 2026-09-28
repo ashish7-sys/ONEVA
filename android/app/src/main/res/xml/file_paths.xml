@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Minimal sandboxed paths strictly for app-managed verified APK package handoff -->
+    <!-- Exposes ONLY the app-specific Download subfolder; NO broad root or filesystem access -->
+    <external-files-path name="apk_downloads" path="Download" />
+    <files-path name="internal_apk_downloads" path="Download" />
+</paths>

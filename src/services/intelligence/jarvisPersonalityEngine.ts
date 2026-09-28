@@ -213,17 +213,17 @@ export class JarvisPersonalityEngine {
       };
     }
 
-    // 3. SUCCESSFUL ANDROID ACTIONS
+    // 3. SUCCESSFUL ANDROID ACTIONS & CATEGORY A (SIMPLE ACTION)
     if (options.isActionSuccess && options.actionName) {
       const act = options.actionName;
       if (targetLang === 'hi') {
         displayText = address
-          ? `${act} poora ho gaya hai, ${address}.`
-          : `${act} poora ho gaya hai.`;
+          ? `जी ${address}, ${act} खोल दिया गया है।`
+          : `${act} खोल दिया गया है।`;
       } else {
         displayText = address
-          ? `${act} completed, ${address}.`
-          : `${act} completed.`;
+          ? `Yes ${address}. ${act} opened.`
+          : `${act} opened.`;
       }
 
       return {
@@ -237,23 +237,34 @@ export class JarvisPersonalityEngine {
       };
     }
 
-    // 4. SIMPLE COMMAND FORMATTING
-    if (options.complexity === 'SIMPLE' || options.intentType === 'app_request') {
-      if (prefs.personalityStyle === 'concise') {
-        // Keep it ultra crisp
-        spokenText = displayText;
-      } else if (prefs.personalityStyle === 'detailed') {
-        // Add helpful context
-        spokenText = address
-          ? `Right away, ${address}. ${displayText}`
-          : `Right away. ${displayText}`;
-        displayText = spokenText;
-      } else {
-        // Balanced
-        if (address && !displayText.toLowerCase().includes(address.toLowerCase())) {
-          displayText = `${displayText}, ${address}.`;
-          spokenText = displayText;
+    // 4. REQUEST CATEGORIZATION & CONTEXT-AWARE BREVITY
+    // Category A: Simple Action (e.g. app open, toggle flashlight, screenshot, go home)
+    const isSimpleAction = options.complexity === 'SIMPLE' || options.intentType === 'app_request' || options.intentType === 'device_request';
+    if (isSimpleAction) {
+      // Ultra-short response policy: Never narrate obvious internal steps!
+      let concise = displayText;
+      // Strip any verbose narrative prefixes
+      concise = concise
+        .replace(/^(?:certainly sir,?\s*i will now proceed to|certainly,?\s*i am proceeding to|sure,?\s*let me go ahead and|i am now launching|opening now\s*[:,-]?)\s*/i, '')
+        .replace(/^(?:sure thing,?\s*opening|alright,?\s*opening)\s*/i, 'Opening ');
+
+      if (targetLang === 'hi') {
+        spokenText = address ? `जी ${address}, हो गया।` : 'हो गया।';
+        if (concise.length < 35 && !concise.includes('कार्रवाई')) {
+          spokenText = concise;
         }
+      } else {
+        spokenText = address ? `Yes ${address}. Done.` : 'Done.';
+        if (concise.length < 35 && !concise.includes('executing')) {
+          spokenText = concise;
+        }
+      }
+      displayText = concise;
+    } else if (options.intentType === 'query' || options.complexity === 'MODERATE') {
+      // Category B: Simple Information (time, battery, weather) -> Max 1-2 short sentences
+      const sentences = displayText.split(/(?<=[.!?])\s+/);
+      if (sentences.length > 2) {
+        spokenText = sentences.slice(0, 2).join(' ');
       }
     }
 

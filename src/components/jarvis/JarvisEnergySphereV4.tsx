@@ -28,13 +28,21 @@ export interface JarvisEnergySphereRef {
 export interface JarvisEnergySphereV4Props {
   className?: string;
   isActive?: boolean;
+  isSpeaking?: boolean;
+  speechIntensity?: number;
   onTapBurst?: () => void;
 }
 
 export const JarvisEnergySphereV4 = forwardRef<JarvisEnergySphereRef, JarvisEnergySphereV4Props>(
-  ({ className = '', isActive = true, onTapBurst }, ref) => {
+  ({ className = '', isActive = true, isSpeaking = false, speechIntensity = 0, onTapBurst }, ref) => {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
+    const speechRef = useRef({ isSpeaking, intensity: speechIntensity, currentIntensity: 0 });
+
+    useEffect(() => {
+      speechRef.current.isSpeaking = isSpeaking;
+      speechRef.current.intensity = speechIntensity;
+    }, [isSpeaking, speechIntensity]);
 
     // Interaction controls ref
     const interactionRef = useRef({
@@ -510,26 +518,35 @@ export const JarvisEnergySphereV4 = forwardRef<JarvisEnergySphereRef, JarvisEner
         ctrl.currentColorShift += (ctrl.targetColorShift - ctrl.currentColorShift) * 0.05;
         ctrl.touchStrength += (ctrl.targetTouchStrength - ctrl.touchStrength) * 0.1;
 
+        // Speech-reactive vertical movement and harmonic pulsation
+        const sp = speechRef.current;
+        const targetSpIntensity = sp.isSpeaking ? Math.max(0.2, sp.intensity) : 0.0;
+        sp.currentIntensity += (targetSpIntensity - sp.currentIntensity) * 0.12;
+
         sphereGroup.rotation.x = ctrl.currentRX;
-        sphereGroup.rotation.y = ctrl.currentRY + elapsedTime * 0.12;
+        sphereGroup.rotation.y = ctrl.currentRY + elapsedTime * (0.12 + sp.currentIntensity * 0.2);
+        // Vertical harmonic movement driven naturally by speech intensity
+        sphereGroup.position.y = Math.sin(elapsedTime * 6.0) * (sp.currentIntensity * 0.25);
 
         camera.position.z = 3.6 / ctrl.currentZoom;
 
         // Update Shaders
         particleMaterial.uniforms.uTime.value = elapsedTime;
         particleMaterial.uniforms.uTouchPos.value.copy(ctrl.touchPos);
-        particleMaterial.uniforms.uTouchStrength.value = ctrl.touchStrength;
-        particleMaterial.uniforms.uColorShift.value = ctrl.currentColorShift;
+        particleMaterial.uniforms.uTouchStrength.value = Math.max(ctrl.touchStrength, sp.currentIntensity * 1.8);
+        particleMaterial.uniforms.uColorShift.value = ctrl.currentColorShift + sp.currentIntensity * 0.15;
 
         coreMaterial.uniforms.uTime.value = elapsedTime;
-        coreMaterial.uniforms.uColorShift.value = ctrl.currentColorShift;
+        coreMaterial.uniforms.uColorShift.value = ctrl.currentColorShift + sp.currentIntensity * 0.15;
+        coreMesh.scale.setScalar(1.0 + sp.currentIntensity * 0.2 + Math.sin(elapsedTime * 8.0) * 0.05 * sp.currentIntensity);
 
         atmosMat.uniforms.uTime.value = elapsedTime;
 
-        // Orbit ring independent rotations
-        ring1.rotation.z += 0.008;
-        ring2.rotation.z -= 0.012;
-        ring3.rotation.z += 0.006;
+        // Orbit ring independent rotations & pulse with speech
+        ring1.rotation.z += 0.008 + sp.currentIntensity * 0.02;
+        ring2.rotation.z -= 0.012 + sp.currentIntensity * 0.02;
+        ring3.rotation.z += 0.006 + sp.currentIntensity * 0.02;
+        ring1.scale.setScalar(1.0 + sp.currentIntensity * 0.12);
 
         renderer.render(scene, camera);
         animFrameId = requestAnimationFrame(animate);

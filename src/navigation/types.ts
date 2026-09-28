@@ -2,7 +2,6 @@ export type PageId =
   | 'home'
   | 'modules'
   | 'launcher'
-  | 'modify_apps'
   | 'library'
   | 'themes'
   | 'icons'
@@ -14,15 +13,6 @@ export type PageId =
   | 'assist'
   | 'privacy'
   | 'settings';
-
-export type ModifyAppsSubSection =
-  | 'app_list'
-  | 'customize'
-  | 'preview'
-  | 'icons'
-  | 'keyboard'
-  | 'themes'
-  | 'applied';
 
 export interface NavigationRoute {
   page: PageId;

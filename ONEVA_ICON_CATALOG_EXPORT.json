@@ -674,6 +674,42 @@
       "isSupportedInDefaultPack": true,
       "singleAppIconVariants": 0,
       "isDiscoverableDeviceTargets": false
+    },
+    {
+      "appName": "Phone",
+      "packageName": "com.google.android.dialer",
+      "category": "communication",
+      "status": "active",
+      "defaultIcon": "Phone",
+      "defaultIconType": "lucide",
+      "iconPackPath": "icons/phone.svg",
+      "isSupportedInDefaultPack": true,
+      "singleAppIconVariants": 0,
+      "isDiscoverableDeviceTargets": true
+    },
+    {
+      "appName": "Messages",
+      "packageName": "com.google.android.apps.messaging",
+      "category": "communication",
+      "status": "active",
+      "defaultIcon": "MessageSquare",
+      "defaultIconType": "lucide",
+      "iconPackPath": "icons/messages.svg",
+      "isSupportedInDefaultPack": true,
+      "singleAppIconVariants": 0,
+      "isDiscoverableDeviceTargets": true
+    },
+    {
+      "appName": "Contacts",
+      "packageName": "com.google.android.contacts",
+      "category": "communication",
+      "status": "active",
+      "defaultIcon": "Users",
+      "defaultIconType": "lucide",
+      "iconPackPath": "icons/contacts.svg",
+      "isSupportedInDefaultPack": true,
+      "singleAppIconVariants": 0,
+      "isDiscoverableDeviceTargets": true
     }
   ]
 }

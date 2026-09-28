@@ -57,26 +57,10 @@ export class JarvisGlobalWakeService {
       }
     }
 
-    // Auto-start background wake listening ONLY if microphone permission is already confirmed
-    if (this.isEnabled) {
-      const bridge = typeof window !== 'undefined' ? (window as any).OnevaNativeBridge : undefined;
-      const hasNativeMic = bridge && typeof bridge.hasMicrophonePermission === 'function'
-        ? bridge.hasMicrophonePermission()
-        : false;
-
-      if (hasNativeMic) {
-        this.startListening();
-      } else if (typeof navigator !== 'undefined' && (navigator as any).permissions) {
-        (navigator as any).permissions.query({ name: 'microphone' }).then((res: any) => {
-          if (res.state === 'granted') {
-            this.permissionGranted = true;
-            this.startListening();
-          }
-        }).catch(() => {
-          // Stay idle until user activates voice
-        });
-      }
-    }
+    // Startup safety: Do NOT auto-request microphone or start audio listening on startup.
+    // Speech recognition must only be activated on-demand when user configures or applies Jarvis.
+    this.isListening = false;
+    this.permissionGranted = false;
 
     // Listen for native permission changes
     if (typeof window !== 'undefined') {
@@ -144,6 +128,13 @@ export class JarvisGlobalWakeService {
   static startListening(): void {
     if (typeof window === 'undefined') return;
 
+    // In native Android container, speech recognition via webview Web Speech API is unsupported and can crash
+    const bridge = (window as any).OnevaNativeBridge;
+    if (bridge) {
+      // Native android handles recognition via native service
+      return;
+    }
+
     const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRec) {
       console.warn('[JarvisGlobalWakeService] Web Speech Recognition not supported in this browser.');
@@ -171,33 +162,37 @@ export class JarvisGlobalWakeService {
       };
 
       this.recognition.onerror = (event: any) => {
-        if (event.error === 'not-allowed') {
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
           this.permissionGranted = false;
           this.isListening = false;
           this.notify();
           return;
         }
-        // For transient errors like no-speech, auto-restart
+        // Don't spin infinite restart loops on fatal WebView errors
+        if (event.error === 'network' || event.error === 'bad-grammar') {
+          this.isListening = false;
+          this.notify();
+          return;
+        }
+        // For transient errors like no-speech, auto-restart only if active
         if (this.isEnabled) {
-          this.scheduleRestart(1000);
+          this.scheduleRestart(1500);
         }
       };
 
       this.recognition.onend = () => {
         this.isListening = false;
         this.notify();
-        // Keep listening in background as long as enabled
-        if (this.isEnabled) {
-          this.scheduleRestart(350);
+        // Keep listening in background only as long as explicitly enabled
+        if (this.isEnabled && this.permissionGranted) {
+          this.scheduleRestart(1000);
         }
       };
 
       this.recognition.start();
     } catch (e) {
       console.warn('[JarvisGlobalWakeService] Could not start speech recognition:', e);
-      if (this.isEnabled) {
-        this.scheduleRestart(2500);
-      }
+      this.isListening = false;
     }
   }
 

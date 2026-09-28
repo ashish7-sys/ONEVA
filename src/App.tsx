@@ -15,30 +15,43 @@ import { UserProfileService } from './services/userProfileService';
 import { UserNameModal } from './components/UserNameOnboardingModal';
 import { EmergencyResetService } from './services/emergencyResetService';
 import { EmergencySafeModeBanner } from './components/EmergencySafeModeBanner';
+import { OnevaQuickPanel } from './components/quickpanel/OnevaQuickPanel';
 
 const ADMIN_VIEW_STORAGE_KEY = 'oneva_admin_view_active';
 
 export default function App() {
   const [isAdminMode, setIsAdminMode] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const viewActive = localStorage.getItem(ADMIN_VIEW_STORAGE_KEY) === 'true';
-      const urlParams = new URLSearchParams(window.location.search);
-      return viewActive || urlParams.get('admin') === 'true';
+    try {
+      if (typeof window !== 'undefined') {
+        const viewActive = localStorage.getItem(ADMIN_VIEW_STORAGE_KEY) === 'true';
+        const urlParams = new URLSearchParams(window.location.search);
+        return viewActive || urlParams.get('admin') === 'true';
+      }
+    } catch (e) {
+      console.warn('Storage check failed:', e);
     }
     return false;
   });
   const [activeAdmin, setActiveAdmin] = useState<AdminProfile | null>(null);
   const [isVerifyingSession, setIsVerifyingSession] = useState<boolean>(true);
   const [showInitialSplash, setShowInitialSplash] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const alreadyShown = sessionStorage.getItem('oneva_initial_splash_shown');
-      return !alreadyShown;
+    try {
+      if (typeof window !== 'undefined') {
+        const alreadyShown = sessionStorage.getItem('oneva_initial_splash_shown');
+        return !alreadyShown;
+      }
+    } catch (e) {
+      console.warn('SessionStorage check failed:', e);
     }
     return false;
   });
   const [showPermissionWizard, setShowPermissionWizard] = useState<boolean>(false);
   const [showNameOnboarding, setShowNameOnboarding] = useState<boolean>(() => {
-    return UserProfileService.isFirstLaunch();
+    try {
+      return UserProfileService.isFirstLaunch();
+    } catch {
+      return false;
+    }
   });
 
   // Listen for explicit request to open permission wizard from settings or features
@@ -52,13 +65,23 @@ export default function App() {
 
   // Check URL query parameters or active admin session on initial mount
   useEffect(() => {
-    EmergencyResetService.init();
-    JarvisGlobalWakeService.init();
+    try {
+      EmergencyResetService.init();
+    } catch (e) {
+      console.warn('EmergencyResetService init error:', e);
+    }
+
+    // Startup rule: Main UI must render first without requesting optional permissions.
+    // Jarvis voice/wake listening must NOT initialize at startup.
 
     if (typeof window !== 'undefined') {
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('admin') === 'true') {
-        setIsAdminMode(true);
+      try {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('admin') === 'true') {
+          setIsAdminMode(true);
+        }
+      } catch (e) {
+        console.warn('URLSearchParams check failed:', e);
       }
     }
 
@@ -66,15 +89,25 @@ export default function App() {
       .then((admin) => {
         if (admin) {
           setActiveAdmin(admin);
-          const wasAdminActive = localStorage.getItem(ADMIN_VIEW_STORAGE_KEY) === 'true';
-          if (wasAdminActive) {
-            setIsAdminMode(true);
+          try {
+            const wasAdminActive = localStorage.getItem(ADMIN_VIEW_STORAGE_KEY) === 'true';
+            if (wasAdminActive) {
+              setIsAdminMode(true);
+            }
+          } catch {
+            // Ignore
           }
         } else {
           // If no active session found, clear view persistence so client isn't trapped
-          localStorage.removeItem(ADMIN_VIEW_STORAGE_KEY);
+          try {
+            localStorage.removeItem(ADMIN_VIEW_STORAGE_KEY);
+          } catch {}
           setIsAdminMode(false);
         }
+      })
+      .catch((err) => {
+        console.warn('Admin session verification error:', err);
+        setIsAdminMode(false);
       })
       .finally(() => {
         setIsVerifyingSession(false);
@@ -119,6 +152,9 @@ export default function App() {
 
   return (
     <ErrorBoundary>
+      {/* Real Android Quick Panel & System Control Layer */}
+      <OnevaQuickPanel />
+
       {/* Emergency Global Reset Safe Mode Banner */}
       <EmergencySafeModeBanner />
 

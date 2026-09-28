@@ -19,13 +19,37 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- System Controls & Quick Panel Settings -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.WRITE_SETTINGS" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <!-- Android Package Installer handoff for legitimate direct camera provider installation -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
-    <!-- Fallback Package Visibility Queries block for launchable user-facing activities -->
+    <!-- Fallback Package Visibility Queries block for launchable user-facing activities and candidate camera providers -->
     <queries>
         <intent>
             <action android:name="android.intent.action.MAIN" />
             <category android:name="android.intent.category.LAUNCHER" />
         </intent>
+        <!-- Candidate Camera Providers for Android 11+ Package Visibility -->
+        <package android:name="com.samsung.android.app.galaxyraw" />
+        <package android:name="com.google.android.GoogleCamera.Hasli" />
+        <package android:name="com.google.android.GoogleCamera" />
+        <package android:name="com.google.android.GoogleCamera.BSG" />
+        <package android:name="com.agc.cam" />
+        <package android:name="com.motioncam" />
+        <package android:name="com.motioncam.pro" />
+        <package android:name="com.adobe.lrmobile" />
+        <package android:name="net.sourceforge.opencamera" />
+        <package android:name="com.riseupgames.proshot2" />
+        <package android:name="com.flavionet.android.camera.pro" />
+        <package android:name="com.blackmagicdesign.android.blackmagiccam" />
+        <package android:name="com.intermedia.hd.camera.pro" />
     </queries>
 
     <application
@@ -82,6 +106,28 @@
             android:foregroundServiceType="microphone"
             android:enabled="true"
             android:exported="false" />
+
+        <!-- ONEVA Real Android Notification Listener Service -->
+        <service
+            android:name=".OnevaNotificationListenerService"
+            android:label="ONEVA System Notifications"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <!-- Secure FileProvider for Android Package Installer handoff -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="io.oneva.android.launcher.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
 
     </application>
 

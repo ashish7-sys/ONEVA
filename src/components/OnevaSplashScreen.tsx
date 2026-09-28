@@ -9,37 +9,28 @@ interface OnevaSplashScreenProps {
 
 export function OnevaSplashScreen({
   onComplete,
-  autoDismissMs = 2200,
+  autoDismissMs = 1400,
 }: OnevaSplashScreenProps) {
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState('Initializing ONEVA Framework...');
   const [isFadingOut, setIsFadingOut] = useState(false);
 
   useEffect(() => {
-    // Stage 1
+    // Fast failsafe progress
     const t1 = setTimeout(() => {
-      setProgress(40);
-      setStatusText('Verifying Local Privacy Sandbox...');
-    }, 500);
+      setProgress(50);
+      setStatusText('Privacy Sandbox Active');
+    }, 250);
 
-    // Stage 2
     const t2 = setTimeout(() => {
-      setProgress(75);
-      setStatusText('Connecting Native Presentation Engine...');
-    }, 1100);
-
-    // Stage 3
-    const t3 = setTimeout(() => {
       setProgress(100);
       setStatusText('Ready');
-    }, 1700);
+    }, 800);
 
-    // Start Fade Out
     const tFade = setTimeout(() => {
       setIsFadingOut(true);
-    }, autoDismissMs - 400);
+    }, Math.max(autoDismissMs - 300, 700));
 
-    // Complete
     const tComplete = setTimeout(() => {
       onComplete();
     }, autoDismissMs);
@@ -47,7 +38,6 @@ export function OnevaSplashScreen({
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
-      clearTimeout(t3);
       clearTimeout(tFade);
       clearTimeout(tComplete);
     };
@@ -56,7 +46,8 @@ export function OnevaSplashScreen({
   return (
     <div
       id="oneva-startup-splash"
-      className={`fixed inset-0 z-50 bg-neutral-950 flex flex-col items-center justify-between p-8 sm:p-12 select-none transition-opacity duration-400 ${
+      onClick={onComplete}
+      className={`fixed inset-0 z-50 bg-neutral-950 flex flex-col items-center justify-between p-8 sm:p-12 select-none cursor-pointer transition-opacity duration-300 ${
         isFadingOut ? 'opacity-0 pointer-events-none' : 'opacity-100'
       }`}
     >

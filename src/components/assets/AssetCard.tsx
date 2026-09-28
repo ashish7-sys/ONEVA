@@ -45,6 +45,8 @@ export function AssetCard({ asset, onSelect }: AssetCardProps) {
   const [hasMediaError, setHasMediaError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
+  const pipeline = AssetCacheService.resolveCardPreviewPipeline(asset);
+
   const rawDirectMedia =
     asset.previewData?.previewThumbnailUrl ||
     asset.previewData?.previewUrl ||
@@ -55,7 +57,7 @@ export function AssetCard({ asset, onSelect }: AssetCardProps) {
 
   const directMedia = resolveDownloadableMediaUrl(rawDirectMedia);
 
-  const thumbnailFromCache = AssetCacheService.resolveCardThumbnail(asset);
+  const thumbnailFromCache = pipeline.thumbnailUrl || AssetCacheService.resolveCardThumbnail(asset);
   const storedMedia = AssetStorageService.getMediaSync(asset.id);
   const activeMediaUrl =
     asyncMediaUrl ||
@@ -83,14 +85,15 @@ export function AssetCard({ asset, onSelect }: AssetCardProps) {
   }, [asset.id, activeMediaUrl]);
 
   const isVideo = Boolean(
-    asset.previewData?.mediaType === 'video' ||
+    pipeline.isVideo ||
+      asset.previewData?.mediaType === 'video' ||
       asset.payload?.mediaType === 'wallpaper_live' ||
       Boolean(asset.previewData?.previewVideoUrl) ||
       (activeMediaUrl && (activeMediaUrl.startsWith('data:video') || activeMediaUrl.match(/\.(mp4|webm|mov|mkv)$/i))) ||
       (asset.category === 'live_wallpaper' && Boolean(activeMediaUrl && !activeMediaUrl.startsWith('data:image')))
   );
 
-  const isLive = Boolean(isVideo || asset.isLiveWallpaper || asset.category === 'live_wallpaper');
+  const isLive = Boolean(isVideo || pipeline.isLive || asset.isLiveWallpaper || asset.category === 'live_wallpaper');
 
   // Video autoplay & viewport optimization: pause when scrolled off-screen
   useEffect(() => {
@@ -463,11 +466,15 @@ export function AssetCard({ asset, onSelect }: AssetCardProps) {
 
   // Helper to render Wallpaper / Live Wallpaper Card with Canonical Media
   const renderWallpaperCard = () => {
+    const poster = pipeline.posterUrl || pipeline.thumbnailUrl || undefined;
+    const videoSrc = pipeline.videoPreviewUrl || activeMediaUrl;
+    const imageSrc = pipeline.thumbnailUrl || activeMediaUrl;
+
     // 1. VIDEO / LIVE WALLPAPER PREVIEW
-    if (isVideo && activeMediaUrl) {
+    if (isVideo && (videoSrc || poster)) {
       return (
         <div className="relative w-full h-full overflow-hidden bg-black flex items-center justify-center">
-          {hasMediaError ? (
+          {hasMediaError && !poster ? (
             <div className="flex flex-col items-center justify-center p-3 text-center text-neutral-400 gap-1.5">
               <AlertTriangle className="w-5 h-5 text-amber-400/80" />
               <span className="text-[11px] font-mono text-neutral-300 font-semibold">Preview unavailable</span>
@@ -475,28 +482,36 @@ export function AssetCard({ asset, onSelect }: AssetCardProps) {
             </div>
           ) : (
             <>
-              {!isMediaLoaded && (
-                <div className="absolute inset-0 bg-neutral-950 flex items-center justify-center z-10">
-                  <div className="w-5 h-5 border-2 border-rose-400/30 border-t-rose-400 rounded-full animate-spin" />
-                </div>
+              {/* Immediate static poster frame prevents black boxes or UI thread stalls */}
+              {poster && (
+                <img
+                  src={poster}
+                  alt={asset.name}
+                  loading="lazy"
+                  decoding="async"
+                  className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300"
+                />
               )}
-              <video
-                ref={videoRef}
-                src={activeMediaUrl}
-                autoPlay
-                loop
-                muted
-                playsInline
-                preload="auto"
-                onLoadedData={() => setIsMediaLoaded(true)}
-                onError={(e) => {
-                  console.error(`[AssetCard] Video playback failed for "${asset.name}" (${asset.id}):`, e);
-                  setHasMediaError(true);
-                }}
-                className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
-                  isMediaLoaded ? 'opacity-100' : 'opacity-0'
-                }`}
-              />
+              {videoSrc && (
+                <video
+                  ref={videoRef}
+                  src={videoSrc}
+                  poster={poster}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  preload="metadata"
+                  onLoadedData={() => setIsMediaLoaded(true)}
+                  onError={(e) => {
+                    console.warn(`[AssetCard] Video preview notice for "${asset.name}":`, e);
+                    if (!poster) setHasMediaError(true);
+                  }}
+                  className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
+                    isMediaLoaded ? 'opacity-100' : poster ? 'opacity-70' : 'opacity-0'
+                  }`}
+                />
+              )}
             </>
           )}
         </div>
@@ -504,7 +519,7 @@ export function AssetCard({ asset, onSelect }: AssetCardProps) {
     }
 
     // 2. STATIC IMAGE WALLPAPER PREVIEW
-    if (activeMediaUrl && !isVideo) {
+    if (imageSrc && !isVideo) {
       return (
         <div className="relative w-full h-full overflow-hidden bg-neutral-950 flex items-center justify-center">
           {hasMediaError ? (
@@ -516,17 +531,21 @@ export function AssetCard({ asset, onSelect }: AssetCardProps) {
           ) : (
             <>
               {!isMediaLoaded && (
-                <div className="absolute inset-0 bg-neutral-900 animate-pulse flex items-center justify-center">
+                <div
+                  className="absolute inset-0 flex items-center justify-center"
+                  style={{ background: pipeline.fallbackCss }}
+                >
                   <div className="w-5 h-5 border-2 border-cyan-400/30 border-t-cyan-400 rounded-full animate-spin" />
                 </div>
               )}
               <img
-                src={activeMediaUrl}
+                src={imageSrc}
                 alt={asset.name}
                 loading="lazy"
+                decoding="async"
                 onLoad={() => setIsMediaLoaded(true)}
                 onError={(e) => {
-                  console.error(`[AssetCard] Image failed to load for "${asset.name}" (${asset.id}):`, e);
+                  console.warn(`[AssetCard] Thumbnail image fallback for "${asset.name}":`, e);
                   setHasMediaError(true);
                 }}
                 className={`w-full h-full object-cover transition-all duration-500 group-hover:scale-105 ${

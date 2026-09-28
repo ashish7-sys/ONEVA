@@ -92,15 +92,6 @@ export function ModulesPage({ onNavigate, onNavigateBack }: ModulesPageProps) {
       badge: 'Android IME',
     },
     {
-      id: 'modify_apps' as PageId,
-      name: 'Modify Real Apps',
-      tagline: 'Granular Per-App Enhancements',
-      description: 'Customize individual real Android applications: override specific icons, bind custom launch glow, and set app-specific tactile profiles.',
-      icon: Sliders,
-      color: 'from-violet-500/20 to-purple-500/20 text-violet-300 border-violet-400/30',
-      badge: `${catalogCount} Apps Catalog`,
-    },
-    {
       id: 'privacy' as PageId,
       name: 'Privacy & Sandbox',
       tagline: 'Zero Spyware Architecture',

@@ -58,6 +58,17 @@ export class CameraStreamManager {
       return this.permissionState;
     }
 
+    const bridge = typeof window !== 'undefined' ? (window as any).OnevaNativeBridge : undefined;
+    if (bridge && typeof bridge.hasCameraPermission === 'function') {
+      try {
+        this.permissionState = bridge.hasCameraPermission() ? 'granted' : 'prompt';
+        this.notify();
+        return this.permissionState;
+      } catch {
+        // Fallback
+      }
+    }
+
     if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       this.permissionState = 'unsupported';
       this.notify();
@@ -65,7 +76,7 @@ export class CameraStreamManager {
     }
 
     try {
-      if (navigator.permissions && navigator.permissions.query) {
+      if (navigator.permissions && typeof navigator.permissions.query === 'function') {
         // Query camera permission if supported
         const status = await navigator.permissions.query({ name: 'camera' as PermissionName });
         if (status.state === 'granted') {

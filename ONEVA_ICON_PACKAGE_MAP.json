@@ -53,5 +53,8 @@
   "com.lenskart.app": "icons/lenskart.svg",
   "com.bigbasket.mobileapp": "icons/bigbasket.svg",
   "com.google.android.apps.docs": "icons/google-drive.svg",
-  "com.sbi.lotusintouch": "icons/yono-sbi.svg"
+  "com.sbi.lotusintouch": "icons/yono-sbi.svg",
+  "com.google.android.dialer": "icons/phone.svg",
+  "com.google.android.apps.messaging": "icons/messages.svg",
+  "com.google.android.contacts": "icons/contacts.svg"
 }

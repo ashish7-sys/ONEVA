@@ -31,6 +31,9 @@ export class AppResolutionService {
     'org.telegram.messenger': ['telegram', 'tele gram', 'tg'],
     'com.android.settings': ['settings', 'phone settings', 'system settings', 'setting'],
     'com.oneva.android.launcher': ['oneva', 'launcher', 'home', 'oneva launcher'],
+    'com.google.android.dialer': ['phone', 'dialer', 'call', 'telephone', 'calling', 'phone app', 'fon'],
+    'com.google.android.apps.messaging': ['messages', 'message', 'sms', 'text', 'texting', 'messaging', 'chat messages', 'rcs'],
+    'com.google.android.contacts': ['contacts', 'contact', 'address book', 'phonebook', 'people'],
   };
 
   /**

@@ -60,21 +60,18 @@ export function ImmersiveAssetPreviewModal({
   const [showMenu, setShowMenu] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  if (!isOpen || !asset) return null;
-
   const [asyncMediaUrl, setAsyncMediaUrl] = useState<string | null>(null);
+
   const rawDirectMedia =
-    asset.previewData?.previewThumbnailUrl ||
-    asset.previewData?.previewUrl ||
-    asset.previewData?.previewVideoUrl ||
-    asset.previewData?.previewDataUrl ||
-    (asset.payload?.assetUrl as string) ||
-    (asset.payload?.wallpaperUrl as string);
+    asset?.previewData?.previewThumbnailUrl ||
+    asset?.previewData?.previewUrl ||
+    asset?.previewData?.previewVideoUrl ||
+    asset?.previewData?.previewDataUrl ||
+    (asset?.payload?.assetUrl as string) ||
+    (asset?.payload?.wallpaperUrl as string);
 
-  const directMedia = resolveDownloadableMediaUrl(rawDirectMedia);
-
-  const storedMedia = AssetStorageService.getMediaSync(asset.id);
+  const directMedia = rawDirectMedia ? resolveDownloadableMediaUrl(rawDirectMedia) : null;
+  const storedMedia = asset ? AssetStorageService.getMediaSync(asset.id) : null;
   const activeMediaUrl =
     asyncMediaUrl ||
     (directMedia && !directMedia.includes('...') ? directMedia : null) ||
@@ -84,7 +81,7 @@ export function ImmersiveAssetPreviewModal({
 
   useEffect(() => {
     let isMounted = true;
-    if (!activeMediaUrl) {
+    if (asset && !activeMediaUrl) {
       AssetStorageService.getMedia(asset.id).then((rec) => {
         if (isMounted && rec) {
           const media = rec.thumbnailUrl || rec.dataUrl;
@@ -97,7 +94,9 @@ export function ImmersiveAssetPreviewModal({
     return () => {
       isMounted = false;
     };
-  }, [asset.id, activeMediaUrl]);
+  }, [asset?.id, activeMediaUrl]);
+
+  if (!isOpen || !asset) return null;
 
   const isVideo = Boolean(
     asset.previewData?.mediaType === 'video' ||

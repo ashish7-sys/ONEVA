@@ -465,8 +465,8 @@ export class JarvisActionSelector {
     if (/\b(?:jarvis settings|oneva settings|settings)\b/i.test(lower) && /\b(?:kholo|open|dikhao|chalao|section)\b/i.test(lower)) {
       return 'settings';
     }
-    if (/\b(?:modify apps?|customization library|library)\b/i.test(lower) && /\b(?:kholo|open|dikhao|chalao|section)\b/i.test(lower)) {
-      return 'modify_apps';
+    if (/\b(?:customization library|library)\b/i.test(lower) && /\b(?:kholo|open|dikhao|chalao|section)\b/i.test(lower)) {
+      return 'library';
     }
     if (/\b(?:privacy|sandbox|rule 6)\b/i.test(lower) && /\b(?:kholo|open|dikhao|chalao|section)\b/i.test(lower)) {
       return 'privacy';

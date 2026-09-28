@@ -136,7 +136,30 @@ export function SettingsPage({ onNavigateBack, onNavigateToPage }: SettingsPageP
           <ChevronRight className="w-4 h-4 text-neutral-500" />
         </div>
 
-        {/* 3. Updates */}
+        {/* 3. Quick Panel & System Controls */}
+        <div
+          onClick={() => {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('calibrate-oneva-quick-panel'));
+            }
+          }}
+          className="flex items-center justify-between p-4 hover:bg-white/[0.03] transition cursor-pointer"
+        >
+          <div className="flex items-center gap-3.5">
+            <div className="w-9 h-9 rounded-xl bg-cyan-500/15 text-cyan-400 flex items-center justify-center">
+              <Sliders className="w-5 h-5" />
+            </div>
+            <div>
+              <span className="text-xs font-semibold text-white block">Quick Panel &amp; Trigger Zone</span>
+              <span className="text-[11px] text-neutral-400">
+                Two-stage pull down &bull; Calibrate top trigger height &bull; Select control skins
+              </span>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-neutral-500" />
+        </div>
+
+        {/* 4. Updates */}
         <div
           onClick={() => setActiveModal('updates')}
           className="flex items-center justify-between p-4 hover:bg-white/[0.03] transition cursor-pointer"

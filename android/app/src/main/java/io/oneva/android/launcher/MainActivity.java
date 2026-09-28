@@ -111,15 +111,16 @@ public class MainActivity extends AppCompatActivity {
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         ));
-        rootContainer.setBackgroundColor(Color.parseColor("#09090b"));
+        rootContainer.setBackgroundColor(Color.parseColor("#060C1E"));
 
-        // 2. Primary WebView Surface
+        // 2. Primary WebView Surface with hardware acceleration
         webView = new WebView(this);
         webView.setLayoutParams(new FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         ));
-        webView.setBackgroundColor(Color.parseColor("#09090b"));
+        webView.setBackgroundColor(Color.parseColor("#060C1E"));
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         rootContainer.addView(webView);
 
         // 3. Native Debug Safety Layer (Diagnostic UI, hidden by default)
@@ -152,6 +153,7 @@ public class MainActivity extends AppCompatActivity {
         // 6. Modern local asset loader to serve bundled Vite files safely over HTTPS origin
         assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain("appassets.androidplatform.net")
+                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
                 .build();
 
@@ -182,6 +184,18 @@ public class MainActivity extends AppCompatActivity {
                             InputStream is = getAssets().open(path);
                             return new WebResourceResponse(mimeType, "UTF-8", is);
                         } catch (Exception e) {
+                            // Try resolving under assets/ or root assets
+                            try {
+                                if (path.startsWith("assets/")) {
+                                    String sub = path.substring("assets/".length());
+                                    InputStream is = getAssets().open(sub);
+                                    return new WebResourceResponse(getMimeTypeFromPath(path), "UTF-8", is);
+                                } else {
+                                    InputStream is = getAssets().open("assets/" + path);
+                                    return new WebResourceResponse(getMimeTypeFromPath(path), "UTF-8", is);
+                                }
+                            } catch (Exception ignored) {}
+
                             // SPA route fallback: serve index.html for non-file routes
                             if (!path.contains(".") || path.endsWith(".html")) {
                                 try {
@@ -765,6 +779,7 @@ public class MainActivity extends AppCompatActivity {
         super.onResume();
         if (webView != null) {
             webView.onResume();
+            webView.resumeTimers();
         }
     }
 

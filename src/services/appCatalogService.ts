@@ -7,7 +7,7 @@ import {
 import { getSupabaseClient } from '../supabase/client';
 import { CatalogIconHelper } from './catalogIconHelper';
 
-const STORAGE_CATALOG_KEY = 'oneva_app_catalog_v9';
+const STORAGE_CATALOG_KEY = 'oneva_app_catalog_v10';
 
 /**
  * Helper to construct a fully populated CatalogApp entry for canonical apps (56 apps)
@@ -79,6 +79,7 @@ function createExtendedApp(
     packageAliases?: string[];
     webFallbackIntent?: string;
     metadata?: Record<string, any>;
+    isSystemApp?: boolean;
   }
 ): CatalogApp {
   return {
@@ -109,7 +110,7 @@ function createExtendedApp(
     searchKeywords: Array.from(
       new Set([displayName.toLowerCase(), normalizedName, ...aliases.map((a) => a.toLowerCase())])
     ),
-    isSystemApp: false,
+    isSystemApp: Boolean(options?.isSystemApp),
     webFallbackIntent: options?.webFallbackIntent,
     metadata: options?.metadata || {},
     createdAt: '2026-03-23T00:00:00Z',
@@ -733,7 +734,7 @@ export const SEED_CATALOG_APPS: CatalogApp[] = [
 ];
 
 /**
- * Extended App Catalog (22 additional applications outside the canonical 56 catalog).
+ * Extended App Catalog (25 additional applications outside the canonical 56 catalog).
  * Kept strictly separate from the canonical 56 apps with catalogType: 'extended'.
  * Initially their icon status is 'not_uploaded' and icon asset is null.
  * When an icon is uploaded or attached, it automatically transitions to 'available'.
@@ -1024,6 +1025,56 @@ export const EXTENDED_CATALOG_APPS: CatalogApp[] = [
     ['files by google', 'files app', 'file manager', 'my files', 'storage', 'documentsui'],
     { packageAliases: ['com.android.documentsui', 'com.google.android.documentsui'] }
   ),
+
+  // 23. Phone
+  createExtendedApp(
+    'ext-phone',
+    'Phone',
+    'phone',
+    'com.google.android.dialer',
+    'communication',
+    '#10b981',
+    'Phone',
+    ['phone', 'dialer', 'call', 'telephone', 'calling', 'phone app', 'fon'],
+    {
+      isSystemApp: true,
+      packageAliases: ['com.android.dialer', 'com.samsung.android.dialer'],
+      webFallbackIntent: 'tel:'
+    }
+  ),
+
+  // 24. Messages
+  createExtendedApp(
+    'ext-messages',
+    'Messages',
+    'messages',
+    'com.google.android.apps.messaging',
+    'communication',
+    '#1a73e8',
+    'MessageSquare',
+    ['messages', 'sms', 'text', 'texting', 'messaging', 'chat messages', 'rcs'],
+    {
+      isSystemApp: true,
+      packageAliases: ['com.android.mms', 'com.samsung.android.messaging'],
+      webFallbackIntent: 'sms:'
+    }
+  ),
+
+  // 25. Contacts
+  createExtendedApp(
+    'ext-contacts',
+    'Contacts',
+    'contacts',
+    'com.google.android.contacts',
+    'communication',
+    '#3b82f6',
+    'Users',
+    ['contacts', 'contact', 'address book', 'phonebook', 'people'],
+    {
+      isSystemApp: true,
+      packageAliases: ['com.android.contacts', 'com.samsung.android.app.contacts']
+    }
+  ),
 ];
 
 export class AppCatalogService {
@@ -1041,6 +1092,7 @@ export class AppCatalogService {
       try {
         const raw =
           localStorage.getItem(STORAGE_CATALOG_KEY) ||
+          localStorage.getItem('oneva_app_catalog_v9') ||
           localStorage.getItem('oneva_app_catalog_v8') ||
           localStorage.getItem('oneva_app_catalog_v7');
         if (raw) {
@@ -1062,7 +1114,7 @@ export class AppCatalogService {
       map.set(seed.packageName.toLowerCase(), seed);
     }
 
-    // 2. Put extended apps next (22 extended apps)
+    // 2. Put extended apps next (25 extended apps)
     for (const ext of EXTENDED_CATALOG_APPS) {
       map.set(ext.packageName.toLowerCase(), ext);
     }
@@ -1126,7 +1178,7 @@ export class AppCatalogService {
   }
 
   /**
-   * Return the 22 extended apps
+   * Return the 25 extended apps
    */
   static getExtendedApps(): CatalogApp[] {
     return this.getAllApps().filter((a) => a.catalogType === 'extended');
@@ -1162,7 +1214,7 @@ export class AppCatalogService {
   }
 
   /**
-   * Count of extended apps (22)
+   * Count of extended apps (25)
    */
   static getExtendedCatalogCount(): number {
     return this.getExtendedApps().length;

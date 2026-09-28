@@ -219,18 +219,71 @@ export class AssetCacheService {
     const cached = this.getCachedUrlSync(asset.id, 'thumbnail');
     if (cached) return cached;
 
-    // 2. Direct thumbnail from previewData or mediaUrls
+    // 2. Direct thumbnail or poster from previewData
     const thumb =
       asset.mediaUrls?.thumbnailUrl ||
       asset.previewData?.previewThumbnailUrl ||
-      asset.previewData?.previewUrl ||
-      asset.previewData?.previewDataUrl;
+      asset.previewData?.posterUrl ||
+      asset.previewData?.previewDataUrl ||
+      asset.previewData?.previewUrl;
 
     if (thumb && !thumb.includes('...')) return thumb;
 
     // 3. Stored media in IndexedDB
     const stored = AssetStorageService.getMediaSync(asset.id);
     return stored?.thumbnailUrl || stored?.dataUrl || null;
+  }
+
+  /**
+   * Two-Asset Pipeline Resolver for Cards:
+   * Decouples heavy full-res video/image downloads from catalog display.
+   */
+  static resolveCardPreviewPipeline(asset: OnevaAsset): {
+    thumbnailUrl: string | null;
+    posterUrl: string | null;
+    videoPreviewUrl: string | null;
+    isVideo: boolean;
+    isLive: boolean;
+    fallbackCss: string;
+  } {
+    const isVideo = Boolean(
+      asset.previewData?.mediaType === 'video' ||
+        asset.payload?.mediaType === 'wallpaper_live' ||
+        Boolean(asset.previewData?.previewVideoUrl) ||
+        (asset.category === 'live_wallpaper' && !asset.previewData?.cssBackground)
+    );
+
+    const isLive = Boolean(isVideo || asset.isLiveWallpaper || asset.category === 'live_wallpaper');
+
+    // Poster or low-MB thumbnail image
+    const posterUrl =
+      asset.previewData?.posterUrl ||
+      asset.previewData?.previewThumbnailUrl ||
+      this.getCachedUrlSync(asset.id, 'thumbnail') ||
+      AssetStorageService.getMediaSync(asset.id)?.thumbnailUrl ||
+      null;
+
+    const thumbnailUrl = posterUrl || this.resolveCardThumbnail(asset);
+
+    // Video preview URL (only requested when card is actively hovered/in-view)
+    const rawVideo =
+      asset.previewData?.previewVideoUrl ||
+      (isVideo ? asset.previewData?.previewUrl || (asset.payload?.assetUrl as string) : null);
+    const videoPreviewUrl = rawVideo ? resolveDownloadableMediaUrl(rawVideo) : null;
+
+    // Elegant fallback gradient to guarantee cards never stay pitch black or freeze
+    const fallbackCss =
+      asset.previewData?.cssBackground ||
+      'radial-gradient(ellipse at 50% 30%, rgba(6, 182, 212, 0.12) 0%, rgba(9, 9, 11, 0.95) 75%, #050507 100%)';
+
+    return {
+      thumbnailUrl,
+      posterUrl,
+      videoPreviewUrl,
+      isVideo,
+      isLive,
+      fallbackCss,
+    };
   }
 
   /**

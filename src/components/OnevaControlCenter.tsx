@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { PageId, NavigationRoute, ModifyAppsSubSection } from '../navigation/types';
+import { PageId, NavigationRoute } from '../navigation/types';
 import { NavigationBus } from '../navigation/navigationBus';
 import { Header } from './Header';
 import { HomePage } from '../pages/HomePage';
 import { ModulesPage } from '../pages/ModulesPage';
-import { ModifyAppsPage } from '../pages/ModifyAppsPage';
 import { KeyboardPage } from '../pages/KeyboardPage';
 import { IconsPage } from '../pages/IconsPage';
 import { ThemesPage } from '../pages/ThemesPage';
@@ -63,8 +62,6 @@ export function OnevaControlCenter({ onOpenAdminPortal }: OnevaControlCenterProp
         return 'Control Center';
       case 'modules':
         return 'Customization Modules';
-      case 'modify_apps':
-        return 'Modify Apps';
       case 'library':
         return 'Customization Library';
       case 'themes':
@@ -79,7 +76,7 @@ export function OnevaControlCenter({ onOpenAdminPortal }: OnevaControlCenterProp
       case 'wallpapers':
         return 'Wallpapers';
       case 'camera':
-        return 'ONEVA Vision';
+        return 'ONEVA AI Camera';
       case 'assist':
         return 'ONEVA Assist';
       case 'privacy':
@@ -164,15 +161,6 @@ export function OnevaControlCenter({ onOpenAdminPortal }: OnevaControlCenterProp
         {currentRoute.page === 'modules' && (
           <ModulesPage
             onNavigate={(page) => navigateTo(page)}
-            onNavigateBack={goBack}
-          />
-        )}
-
-        {currentRoute.page === 'modify_apps' && (
-          <ModifyAppsPage
-            initialSubSection={(currentRoute.subSection as ModifyAppsSubSection) || 'app_list'}
-            onNavigateToSubSection={(sub, pkg) => navigateTo('modify_apps', sub, pkg)}
-            onOpenGlobalFeature={(globalPage, pkg) => navigateTo(globalPage, undefined, pkg)}
             onNavigateBack={goBack}
           />
         )}

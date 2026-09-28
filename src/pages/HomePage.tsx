@@ -310,31 +310,35 @@ export function HomePage({ onNavigate }: HomePageProps) {
         </div>
       </div>
 
-      {/* 4. Target Real Apps Modifier Shortcut Tile */}
+      {/* Real Android Quick Panel / System Control Layer */}
       <div
-        onClick={() => onNavigate('modify_apps')}
-        className="p-4 rounded-3xl bg-gradient-to-r from-[#0C1A3A]/80 via-[#0A142D]/80 to-[#121A3D]/80 border border-cyan-500/25 hover:border-cyan-400/45 flex items-center justify-between gap-4 transition cursor-pointer group shadow-lg"
+        onClick={() => {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('open-oneva-quick-panel'));
+          }
+        }}
+        className="p-4 rounded-3xl btn-oneva-primary flex items-center justify-between gap-4 transition cursor-pointer group shadow-xl"
       >
         <div className="flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center text-cyan-300 shrink-0 group-hover:scale-105 transition-transform">
+          <div className="w-11 h-11 rounded-2xl bg-cyan-500/15 border border-cyan-400/30 flex items-center justify-center text-cyan-300 shrink-0 group-hover:scale-105 transition-transform shadow-[0_2px_8px_rgba(6,182,212,0.2)]">
             <Sliders className="w-5 h-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-white">Modify Real Android Apps</span>
+              <span className="text-xs font-bold text-white">Adaptive Quick Panel</span>
               <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 font-semibold">
-                {catalogCount} Apps Mapped
+                Two-Stage Pull Down
               </span>
             </div>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Customize YouTube, WhatsApp, Instagram, PhonePe, and Camera with individual icons and edge effects.
+              Swipe down from top screen trigger or tap here to open compact &amp; expanded control layers with live notifications.
             </p>
           </div>
         </div>
-        <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-white transition" />
+        <ChevronRight className="w-5 h-5 text-slate-400 group-hover:text-cyan-300 transition" />
       </div>
 
-      {/* 5. Architectural Directives Cards */}
+      {/* Architectural Directives Cards */}
       <div className="space-y-3 pt-1">
         {/* Banner 1: Real Android vs Fake Simulator */}
         <div className="p-4 rounded-2xl bg-gradient-to-r from-[#0C1836]/70 via-[#091228]/80 to-[#070D1E]/90 border border-cyan-500/20 flex items-start gap-3.5">

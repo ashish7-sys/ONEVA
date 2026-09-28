@@ -23,6 +23,7 @@ import { LauncherSettingsService, WALLPAPER_PRESETS } from '../../launcher/servi
 import { JarvisEnergySphereV4, JarvisEnergySphereRef } from './JarvisEnergySphereV4';
 import { HandControlService } from '../../services/intelligence/gestures/handControlService';
 import { HandControlServiceState } from '../../types/jarvisHandControl';
+import { JarvisSpeechManager } from '../../services/voice/jarvisSpeechManager';
 
 export interface JarvisStatefulBackdropProps {
   className?: string;
@@ -41,6 +42,8 @@ export const JarvisStatefulBackdrop: React.FC<JarvisStatefulBackdropProps> = ({
   const [wallpaperConfig, setWallpaperConfig] = useState<WallpaperConfig>(
     WallpaperService.getConfig()
   );
+  const [isSpeaking, setIsSpeaking] = useState<boolean>(JarvisSpeechManager.isSpeaking());
+  const [speechIntensity, setSpeechIntensity] = useState<number>(JarvisSpeechManager.getAudioIntensity());
 
   // References to video players for each Jarvis state
   const normalVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -48,7 +51,7 @@ export const JarvisStatefulBackdrop: React.FC<JarvisStatefulBackdropProps> = ({
   const shortCmdVideoRef = useRef<HTMLVideoElement | null>(null);
   const longTaskVideoRef = useRef<HTMLVideoElement | null>(null);
 
-  // V4 Sphere ref for air gestures
+  // V4 Sphere ref for air gestures and speech reactivity
   const sphereRef = useRef<JarvisEnergySphereRef | null>(null);
 
   // Sync state subscriptions
@@ -66,9 +69,31 @@ export const JarvisStatefulBackdrop: React.FC<JarvisStatefulBackdropProps> = ({
       setWallpaperConfig(WallpaperService.getConfig());
     });
 
+    const unsubSpeechStart = JarvisSpeechManager.onSpeechStarted(() => {
+      setIsSpeaking(true);
+    });
+
+    const unsubSpeechEnd = JarvisSpeechManager.onSpeechFinished(() => {
+      setIsSpeaking(false);
+      setSpeechIntensity(0.0);
+    });
+
+    const unsubSpeechCancel = JarvisSpeechManager.onSpeechCancelled(() => {
+      setIsSpeaking(false);
+      setSpeechIntensity(0.0);
+    });
+
+    const unsubIntensity = JarvisSpeechManager.onSpeechIntensity((intensity) => {
+      setSpeechIntensity(intensity);
+    });
+
     return () => {
       unsubVisual();
       unsubWallpaper();
+      unsubSpeechStart();
+      unsubSpeechEnd();
+      unsubSpeechCancel();
+      unsubIntensity();
     };
   }, [forceState]);
 
@@ -116,7 +141,7 @@ export const JarvisStatefulBackdrop: React.FC<JarvisStatefulBackdropProps> = ({
     };
   }, [visualState]);
 
-  // Video playback management: play active video, pause inactive to save CPU/battery
+  // Video playback management: normal wallpaper always plays; state loops play when needed
   useEffect(() => {
     const playSafe = (vid: HTMLVideoElement | null) => {
       if (!vid) return;
@@ -125,9 +150,7 @@ export const JarvisStatefulBackdrop: React.FC<JarvisStatefulBackdropProps> = ({
       if (vid.paused) {
         const promise = vid.play();
         if (promise !== undefined) {
-          promise.catch((err) => {
-            console.debug('[JarvisBackdrop] Autoplay caught:', err);
-          });
+          promise.catch(() => {});
         }
       }
     };
@@ -137,28 +160,26 @@ export const JarvisStatefulBackdrop: React.FC<JarvisStatefulBackdropProps> = ({
       vid.pause();
     };
 
+    // Normal wallpaper stays playing or active in background
+    playSafe(normalVideoRef.current);
+
     if (visualState === 'JARVIS_NOT_AWAKE') {
-      playSafe(normalVideoRef.current);
       pauseSafe(awakeVideoRef.current);
       pauseSafe(shortCmdVideoRef.current);
       pauseSafe(longTaskVideoRef.current);
     } else if (visualState === 'JARVIS_AWAKE_IDLE') {
-      pauseSafe(normalVideoRef.current);
       playSafe(awakeVideoRef.current);
       pauseSafe(shortCmdVideoRef.current);
       pauseSafe(longTaskVideoRef.current);
     } else if (visualState === 'JARVIS_SHORT_COMMAND') {
-      pauseSafe(normalVideoRef.current);
       pauseSafe(awakeVideoRef.current);
       playSafe(shortCmdVideoRef.current);
       pauseSafe(longTaskVideoRef.current);
     } else if (visualState === 'JARVIS_LONG_TASK') {
-      pauseSafe(normalVideoRef.current);
       pauseSafe(awakeVideoRef.current);
       pauseSafe(shortCmdVideoRef.current);
       playSafe(longTaskVideoRef.current);
     } else if (visualState === 'JARVIS_HAND_CONTROL') {
-      pauseSafe(normalVideoRef.current);
       pauseSafe(awakeVideoRef.current);
       pauseSafe(shortCmdVideoRef.current);
       pauseSafe(longTaskVideoRef.current);
@@ -169,28 +190,16 @@ export const JarvisStatefulBackdrop: React.FC<JarvisStatefulBackdropProps> = ({
   useEffect(() => {
     const handleVisibility = () => {
       const isHidden = document.hidden;
-      const getActiveVideo = () => {
-        switch (visualState) {
-          case 'JARVIS_NOT_AWAKE':
-            return normalVideoRef.current;
-          case 'JARVIS_AWAKE_IDLE':
-            return awakeVideoRef.current;
-          case 'JARVIS_SHORT_COMMAND':
-            return shortCmdVideoRef.current;
-          case 'JARVIS_LONG_TASK':
-            return longTaskVideoRef.current;
-          default:
-            return null;
-        }
-      };
-
-      const vid = getActiveVideo();
-      if (!vid) return;
-
       if (isHidden) {
-        vid.pause();
+        normalVideoRef.current?.pause();
+        awakeVideoRef.current?.pause();
+        shortCmdVideoRef.current?.pause();
+        longTaskVideoRef.current?.pause();
       } else {
-        vid.play().catch(() => {});
+        normalVideoRef.current?.play().catch(() => {});
+        if (visualState === 'JARVIS_AWAKE_IDLE') awakeVideoRef.current?.play().catch(() => {});
+        if (visualState === 'JARVIS_SHORT_COMMAND') shortCmdVideoRef.current?.play().catch(() => {});
+        if (visualState === 'JARVIS_LONG_TASK') longTaskVideoRef.current?.play().catch(() => {});
       }
     };
 
@@ -215,16 +224,14 @@ export const JarvisStatefulBackdrop: React.FC<JarvisStatefulBackdropProps> = ({
       wallpaperConfig.customWallpaperData.includes('video') ||
       wallpaperConfig.customWallpaperData.includes('data:video'));
 
+  const isJarvisAwake = visualState !== 'JARVIS_NOT_AWAKE';
+
   return (
     <div className={`relative w-full h-full overflow-hidden bg-black ${className}`}>
       {/* ========================================================================= */}
-      {/* STATE 1: NORMAL WALLPAPER (Visible only when JARVIS_NOT_AWAKE)             */}
+      {/* BASE LAYER: NORMAL WALLPAPER (Always visible as base, never destroyed)    */}
       {/* ========================================================================= */}
-      <div
-        className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
-          visualState === 'JARVIS_NOT_AWAKE' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
-        }`}
-      >
+      <div className="absolute inset-0 z-0 overflow-hidden">
         {isNormalDefaultVideo ? (
           <video
             ref={normalVideoRef}
@@ -234,7 +241,7 @@ export const JarvisStatefulBackdrop: React.FC<JarvisStatefulBackdropProps> = ({
             muted
             playsInline
             preload="auto"
-            onError={(e) => console.warn('[JarvisBackdrop] Normal video playback notice:', e)}
+            onError={(e) => console.warn('[JarvisBackdrop] Normal video notice:', e)}
             className="w-full h-full object-cover"
           />
         ) : normalCustomVideoUrl ? (
@@ -246,7 +253,7 @@ export const JarvisStatefulBackdrop: React.FC<JarvisStatefulBackdropProps> = ({
             muted
             playsInline
             preload="auto"
-            onError={(e) => console.warn('[JarvisBackdrop] Custom video playback notice:', e)}
+            onError={(e) => console.warn('[JarvisBackdrop] Custom video notice:', e)}
             className="w-full h-full object-cover"
           />
         ) : wallpaperConfig.customWallpaperData ? (
@@ -268,89 +275,88 @@ export const JarvisStatefulBackdrop: React.FC<JarvisStatefulBackdropProps> = ({
             muted
             playsInline
             preload="auto"
-            onError={(e) => console.warn('[JarvisBackdrop] Fallback video playback notice:', e)}
             className="w-full h-full object-cover"
           />
         )}
       </div>
 
       {/* ========================================================================= */}
-      {/* STATE 2: JARVIS AWAKE IDLE (Awake_jarvis_normal_state.mp4)                */}
+      {/* JARVIS REACTIVE VISUAL LAYER (Visible over wallpaper ONLY when AWAKE)     */}
       {/* ========================================================================= */}
       <div
-        className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
-          visualState === 'JARVIS_AWAKE_IDLE' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+        className={`absolute inset-0 transition-opacity duration-500 ease-in-out z-10 ${
+          isJarvisAwake ? 'opacity-100' : 'opacity-0 pointer-events-none'
         }`}
       >
-        <video
-          ref={awakeVideoRef}
-          src={JARVIS_ASSETS.awakeIdle.localUrl}
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="auto"
-          onError={(e) => console.warn('[JarvisBackdrop] Awake video playback notice:', e)}
-          className="w-full h-full object-cover"
-        />
-      </div>
+        {/* State 2: Awake Idle Backdrop Loop */}
+        <div
+          className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
+            visualState === 'JARVIS_AWAKE_IDLE' && !isSpeaking ? 'opacity-90' : 'opacity-0 pointer-events-none'
+          }`}
+        >
+          <video
+            ref={awakeVideoRef}
+            src={JARVIS_ASSETS.awakeIdle.localUrl}
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            className="w-full h-full object-cover mix-blend-screen"
+          />
+        </div>
 
-      {/* ========================================================================= */}
-      {/* STATE 3: JARVIS SHORT COMMAND (Jarvis_doing_short_command.mp4)             */}
-      {/* ========================================================================= */}
-      <div
-        className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
-          visualState === 'JARVIS_SHORT_COMMAND' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
-        }`}
-      >
-        <video
-          ref={shortCmdVideoRef}
-          src={JARVIS_ASSETS.shortCommand.localUrl}
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="auto"
-          onError={(e) => console.warn('[JarvisBackdrop] Short command video playback notice:', e)}
-          className="w-full h-full object-cover"
-        />
-      </div>
+        {/* State 3: Short Command Execution */}
+        <div
+          className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
+            visualState === 'JARVIS_SHORT_COMMAND' ? 'opacity-90' : 'opacity-0 pointer-events-none'
+          }`}
+        >
+          <video
+            ref={shortCmdVideoRef}
+            src={JARVIS_ASSETS.shortCommand.localUrl}
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            className="w-full h-full object-cover mix-blend-screen"
+          />
+        </div>
 
-      {/* ========================================================================= */}
-      {/* STATE 4: JARVIS LONG TASK (Jarvis_doing_long_command.mp4)                  */}
-      {/* ========================================================================= */}
-      <div
-        className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
-          visualState === 'JARVIS_LONG_TASK' ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
-        }`}
-      >
-        <video
-          ref={longTaskVideoRef}
-          src={JARVIS_ASSETS.longTask.localUrl}
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="auto"
-          onError={(e) => console.warn('[JarvisBackdrop] Long task video playback notice:', e)}
-          className="w-full h-full object-cover"
-        />
-      </div>
+        {/* State 4: Long Task / Research Loop */}
+        <div
+          className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
+            visualState === 'JARVIS_LONG_TASK' ? 'opacity-90' : 'opacity-0 pointer-events-none'
+          }`}
+        >
+          <video
+            ref={longTaskVideoRef}
+            src={JARVIS_ASSETS.longTask.localUrl}
+            autoPlay
+            loop
+            muted
+            playsInline
+            preload="auto"
+            className="w-full h-full object-cover mix-blend-screen"
+          />
+        </div>
 
-      {/* ========================================================================= */}
-      {/* STATE 5: JARVIS HAND CONTROL (V4 Three.js Energy Sphere)                  */}
-      {/* ========================================================================= */}
-      <div
-        className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
-          visualState === 'JARVIS_HAND_CONTROL'
-            ? 'opacity-100 z-20 pointer-events-auto'
-            : 'opacity-0 z-0 pointer-events-none'
-        }`}
-      >
-        <JarvisEnergySphereV4
-          ref={sphereRef}
-          isActive={visualState === 'JARVIS_HAND_CONTROL'}
-        />
+        {/* State 5 & Reactive Speaking: 3D Energy Sphere (Three.js WebGL with dynamic audio intensity) */}
+        <div
+          className={`absolute inset-0 transition-opacity duration-500 ease-in-out ${
+            visualState === 'JARVIS_HAND_CONTROL' || (isJarvisAwake && isSpeaking)
+              ? 'opacity-100 z-20 pointer-events-auto'
+              : 'opacity-0 pointer-events-none'
+          }`}
+        >
+          <JarvisEnergySphereV4
+            ref={sphereRef}
+            isActive={visualState === 'JARVIS_HAND_CONTROL' || (isJarvisAwake && isSpeaking)}
+            isSpeaking={isSpeaking}
+            speechIntensity={speechIntensity}
+          />
+        </div>
       </div>
 
       {/* Atmospheric depth vignette */}

@@ -188,17 +188,17 @@ export class OnevaPermissionManager {
       }
 
       // Query navigator.permissions for mic and camera if supported
-      if (typeof navigator !== 'undefined' && navigator.permissions?.query) {
+      if (typeof navigator !== 'undefined' && navigator.permissions && typeof navigator.permissions.query === 'function') {
         try {
           const micStatus = await navigator.permissions.query({ name: 'microphone' as any });
-          items.microphone.status = micStatus.state as PermissionStatusState;
+          items.microphone.status = micStatus?.state as PermissionStatusState || 'prompt';
         } catch {
           // Keep cached or prompt
         }
 
         try {
           const camStatus = await navigator.permissions.query({ name: 'camera' as any });
-          items.camera.status = camStatus.state as PermissionStatusState;
+          items.camera.status = camStatus?.state as PermissionStatusState || 'prompt';
         } catch {
           // Keep cached or prompt
         }

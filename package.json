@@ -9,7 +9,7 @@
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist server.js",
     "build:android-assets": "vite build && mkdir -p android/app/src/main/assets && cp -r dist/* android/app/src/main/assets/",
-    "lint": "tsc --noEmit"
+    "lint": "NODE_OPTIONS=--max-old-space-size=4096 tsc --noEmit"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
