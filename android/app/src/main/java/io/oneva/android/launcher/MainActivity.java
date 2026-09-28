@@ -46,9 +46,15 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.webkit.WebViewAssetLoader;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -69,7 +75,6 @@ public class MainActivity extends AppCompatActivity {
     private TextView diagnosticDetailsText;
 
     private OnevaNativeBridge nativeBridge;
-    private WebViewAssetLoader assetLoader;
     private PermissionRequest pendingWebPermissionRequest = null;
 
     private boolean isStartupConfirmed = false;
@@ -150,62 +155,86 @@ public class MainActivity extends AppCompatActivity {
         webView.addJavascriptInterface(nativeBridge, "OnevaNativeBridge");
         webView.addJavascriptInterface(nativeBridge, "OnevaAccessibilityBridge");
 
-        // 6. Modern local asset loader to serve bundled Vite files safely over HTTPS origin
-        assetLoader = new WebViewAssetLoader.Builder()
-                .setDomain("appassets.androidplatform.net")
-                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
-                .addPathHandler("/", new WebViewAssetLoader.AssetsPathHandler(this))
-                .build();
-
-        // 7. Robust WebViewClient with intercept fallback and error catching
+        // 6. Direct APK Asset Loader with full MIME support & instant module loading
+        // Intercepts appassets.androidplatform.net to serve production Vite bundle directly from APK assets
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                Uri url = request.getUrl();
-
-                // Primary: Android WebKit AssetLoader
-                WebResourceResponse response = assetLoader.shouldInterceptRequest(url);
-                if (response != null) {
-                    return response;
+                if (request == null || request.getUrl() == null) {
+                    return null;
                 }
+                Uri url = request.getUrl();
+                String host = url.getHost();
+                String scheme = url.getScheme();
 
-                // Resilient Secondary Fallback for direct APK assets
-                if ("appassets.androidplatform.net".equals(url.getHost())) {
+                if ("appassets.androidplatform.net".equalsIgnoreCase(host) || "android_asset".equalsIgnoreCase(host) || "file".equalsIgnoreCase(scheme)) {
                     String path = url.getPath();
-                    if (path != null) {
-                        if (path.startsWith("/")) {
-                            path = path.substring(1);
-                        }
-                        if (path.isEmpty()) {
-                            path = "index.html";
-                        }
-                        try {
-                            String mimeType = getMimeTypeFromPath(path);
-                            InputStream is = getAssets().open(path);
-                            return new WebResourceResponse(mimeType, "UTF-8", is);
-                        } catch (Exception e) {
-                            // Try resolving under assets/ or root assets
-                            try {
-                                if (path.startsWith("assets/")) {
-                                    String sub = path.substring("assets/".length());
-                                    InputStream is = getAssets().open(sub);
-                                    return new WebResourceResponse(getMimeTypeFromPath(path), "UTF-8", is);
-                                } else {
-                                    InputStream is = getAssets().open("assets/" + path);
-                                    return new WebResourceResponse(getMimeTypeFromPath(path), "UTF-8", is);
-                                }
-                            } catch (Exception ignored) {}
+                    if (path == null || path.isEmpty() || "/".equals(path)) {
+                        path = "index.html";
+                    }
+                    if (path.startsWith("/")) {
+                        path = path.substring(1);
+                    }
+                    try {
+                        path = URLDecoder.decode(path, "UTF-8");
+                    } catch (Exception ignored) {}
 
-                            // SPA route fallback: serve index.html for non-file routes
-                            if (!path.contains(".") || path.endsWith(".html")) {
-                                try {
-                                    InputStream is = getAssets().open("index.html");
-                                    return new WebResourceResponse("text/html", "UTF-8", is);
-                                } catch (Exception ignored) {}
-                            }
+                    // Strip query or fragment if present in path
+                    int qIdx = path.indexOf('?');
+                    if (qIdx != -1) path = path.substring(0, qIdx);
+                    int hIdx = path.indexOf('#');
+                    if (hIdx != -1) path = path.substring(0, hIdx);
+
+                    // Candidate asset paths inside APK assets
+                    List<String> candidates = new ArrayList<>();
+                    candidates.add(path); // Exact path, e.g. "assets/index-B_1iukio.js" or "index.html"
+                    if (path.startsWith("assets/")) {
+                        candidates.add(path.substring(7));
+                    } else {
+                        candidates.add("assets/" + path);
+                    }
+
+                    for (String candidate : candidates) {
+                        try {
+                            InputStream is = getAssets().open(candidate);
+                            String mimeType = getMimeTypeFromPath(candidate);
+                            String encoding = isTextMime(mimeType) ? "UTF-8" : null;
+                            Map<String, String> headers = new HashMap<>();
+                            headers.put("Access-Control-Allow-Origin", "*");
+                            headers.put("Cache-Control", "no-cache, no-store, must-revalidate");
+                            headers.put("X-Content-Type-Options", "nosniff");
+                            Log.d(TAG, "Serving APK asset: " + candidate + " as " + mimeType);
+                            return new WebResourceResponse(mimeType, encoding, 200, "OK", headers, is);
+                        } catch (IOException ignored) {
+                            // File not in this candidate path, continue
                         }
                     }
+
+                    // SPA Client-side Route fallback: If route has no file extension or ends with .html, serve index.html
+                    if (!path.contains(".") || path.endsWith(".html")) {
+                        try {
+                            InputStream is = getAssets().open("index.html");
+                            Map<String, String> headers = new HashMap<>();
+                            headers.put("Access-Control-Allow-Origin", "*");
+                            headers.put("Cache-Control", "no-cache");
+                            Log.d(TAG, "Serving SPA fallback index.html for: " + path);
+                            return new WebResourceResponse("text/html", "UTF-8", 200, "OK", headers, is);
+                        } catch (IOException ignored) {}
+                    }
+
+                    Log.w(TAG, "Asset not found in APK assets: " + path + " (URL: " + url + ")");
+                    Map<String, String> headers = new HashMap<>();
+                    headers.put("Access-Control-Allow-Origin", "*");
+                    return new WebResourceResponse(
+                        "text/plain",
+                        "UTF-8",
+                        404,
+                        "Not Found",
+                        headers,
+                        new ByteArrayInputStream(("Asset not found: " + path).getBytes(StandardCharsets.UTF_8))
+                    );
                 }
+
                 return null;
             }
 
@@ -307,35 +336,8 @@ public class MainActivity extends AppCompatActivity {
         Log.i(TAG, "Initiating ONEVA application load: " + APP_URL);
         webView.loadUrl(APP_URL);
 
-        // 10. Startup Watchdog Timer (10 seconds): alerts user with diagnostic if page completely fails to mount
-        startupWatchdogRunnable = new Runnable() {
-            @Override
-            public void run() {
-                if (!isStartupConfirmed && !isFinishing() && !isDestroyed()) {
-                    if (webView != null) {
-                        webView.evaluateJavascript(
-                            "Boolean(document.getElementById('root') && document.getElementById('root').children.length > 0)",
-                            new ValueCallback<String>() {
-                                @Override
-                                public void onReceiveValue(String value) {
-                                    if ("true".equalsIgnoreCase(value)) {
-                                        onWebStartupSuccess();
-                                    } else {
-                                        showDiagnosticFallback(
-                                            "Startup Render Timeout (10s)",
-                                            "Application bundle loaded, but React DOM root remained empty after 10 seconds.\n" +
-                                            "Current URL: " + (webView != null ? webView.getUrl() : "none") + "\n" +
-                                            "Please check console logs or tap 'Retry Startup'."
-                                        );
-                                    }
-                                }
-                            }
-                        );
-                    }
-                }
-            }
-        };
-        mainHandler.postDelayed(startupWatchdogRunnable, 10000);
+        // 10. Startup Watchdog Timer (15 seconds): alerts user with diagnostic if page completely fails to mount
+        scheduleStartupWatchdog(15000);
 
         // 11. Launcher back button behavior: do not exit launcher on back press
         getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
@@ -352,6 +354,48 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
+    }
+
+    private boolean isTextMime(String mimeType) {
+        if (mimeType == null) return false;
+        return mimeType.startsWith("text/") ||
+               mimeType.contains("javascript") ||
+               mimeType.contains("json") ||
+               mimeType.contains("xml");
+    }
+
+    private void scheduleStartupWatchdog(long delayMillis) {
+        if (startupWatchdogRunnable != null) {
+            mainHandler.removeCallbacks(startupWatchdogRunnable);
+        }
+        startupWatchdogRunnable = new Runnable() {
+            @Override
+            public void run() {
+                if (!isStartupConfirmed && !isFinishing() && !isDestroyed()) {
+                    if (webView != null) {
+                        webView.evaluateJavascript(
+                            "Boolean(document.getElementById('root') && document.getElementById('root').children.length > 0)",
+                            new ValueCallback<String>() {
+                                @Override
+                                public void onReceiveValue(String value) {
+                                    if ("true".equalsIgnoreCase(value)) {
+                                        onWebStartupSuccess();
+                                    } else {
+                                        showDiagnosticFallback(
+                                            "Startup Render Timeout",
+                                            "Application bundle loaded, but React DOM root remained empty after startup timeout.\n" +
+                                            "Current URL: " + (webView != null ? webView.getUrl() : "none") + "\n" +
+                                            "Please tap 'Retry Startup' or check permissions."
+                                        );
+                                    }
+                                }
+                            }
+                        );
+                    }
+                }
+            }
+        };
+        mainHandler.postDelayed(startupWatchdogRunnable, delayMillis);
     }
 
     private String getMimeTypeFromPath(String path) {
@@ -550,7 +594,11 @@ public class MainActivity extends AppCompatActivity {
         retryButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                diagnosticScrollView.setVisibility(View.GONE);
+                if (diagnosticScrollView != null) {
+                    diagnosticScrollView.setVisibility(View.GONE);
+                }
+                isStartupConfirmed = false;
+                scheduleStartupWatchdog(15000);
                 if (webView != null) {
                     webView.clearCache(true);
                     webView.loadUrl(APP_URL);
